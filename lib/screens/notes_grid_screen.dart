@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
+import 'edit_note_screen.dart';
 
 class NotesGridScreen extends StatefulWidget {
   const NotesGridScreen({super.key});
@@ -73,62 +77,81 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   Widget _buildImageTile(String imagePath) {
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            image:
-            DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover),
-            borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EditNoteScreen(initialImage: File(imagePath)),
           ),
-        ),
-        const Positioned(
-          top: 8,
-          left: 8,
-          child: Icon(Icons.play_arrow, color: Colors.white, size: 30),
-        ),
-      ],
+        );
+      },
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const Positioned(
+            top: 8,
+            left: 8,
+            child: Icon(Icons.play_arrow, color: Colors.white, size: 30),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildTextTile(Map<String, String> note) {
-    return Stack(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const EditNoteScreen(), // можно передать данные при необходимости
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (note['title'] != null && note['title']!.isNotEmpty)
-                Text(
-                  note['title']!,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Georgia',
+        );
+      },
+      child: Stack(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (note['title'] != null && note['title']!.isNotEmpty)
+                  Text(
+                    note['title']!,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Georgia',
+                    ),
                   ),
-                ),
-              const SizedBox(height: 4),
-              if (note['subtitle'] != null)
-                Text(
-                  note['subtitle']!,
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-            ],
+                const SizedBox(height: 4),
+                if (note['subtitle'] != null)
+                  Text(
+                    note['subtitle']!,
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
           ),
-        ),
-        const Positioned(
-          top: 8,
-          left: 8,
-          child: Icon(Icons.play_arrow, color: Colors.black, size: 28),
-        ),
-      ],
+          const Positioned(
+            top: 8,
+            left: 8,
+            child: Icon(Icons.play_arrow, color: Colors.black, size: 28),
+          ),
+        ],
+      ),
     );
   }
 

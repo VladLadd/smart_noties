@@ -28,6 +28,12 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>NSCameraUsageDescription</key>
+    <string>Для добавления фото</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Для выбора изображения</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Требуется доступ к микрофону для голосовых заметок</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
