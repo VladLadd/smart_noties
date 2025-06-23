@@ -6,20 +6,19 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/note_model.dart';
+import '../data/note_data.dart';
 
-class EditNoteScreen extends StatefulWidget {
-  final Note note;
-
-  const EditNoteScreen({Key? key, required this.note}) : super(key: key);
+class AddNoteScreen extends StatefulWidget {
+  const AddNoteScreen({super.key});
 
   @override
-  _EditNoteScreenState createState() => _EditNoteScreenState();
+  State<AddNoteScreen> createState() => _AddNoteScreenState();
 }
 
-class _EditNoteScreenState extends State<EditNoteScreen>
+class _AddNoteScreenState extends State<AddNoteScreen>
     with SingleTickerProviderStateMixin {
-  late TextEditingController titleController;
-  late TextEditingController bodyController;
+  final titleController = TextEditingController();
+  final bodyController = TextEditingController();
 
   File? imageFile;
   bool isRecording = false;
@@ -35,13 +34,6 @@ class _EditNoteScreenState extends State<EditNoteScreen>
   @override
   void initState() {
     super.initState();
-
-    titleController = TextEditingController(text: widget.note.title);
-    bodyController = TextEditingController(text: widget.note.body);
-
-    imageFile = widget.note.imagePath != null ? File(widget.note.imagePath!) : null;
-    recordedPath = widget.note.isVoice ? widget.note.voicePath : null;
-
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -77,7 +69,7 @@ class _EditNoteScreenState extends State<EditNoteScreen>
       if (!status.isGranted) return;
 
       final tempDir = Directory.systemTemp;
-      final path = '${tempDir.path}/edited_voice.aac';
+      final path = '${tempDir.path}/note_voice.aac';
 
       await _recorder.startRecorder(toFile: path);
       setState(() {
@@ -107,15 +99,16 @@ class _EditNoteScreenState extends State<EditNoteScreen>
   }
 
   void _saveNote() {
-    setState(() {
-      widget.note.title = titleController.text;
-      widget.note.body = bodyController.text;
-      widget.note.imagePath = imageFile?.path;
-      widget.note.voicePath = recordedPath;
-      widget.note.isVoice = recordedPath != null;
-    });
+    final note = Note(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: titleController.text,
+      body: bodyController.text,
+      imagePath: imageFile?.path,
+      isVoice: recordedPath != null,
+    );
 
-    Navigator.pop(context, widget.note);
+    notes.insert(0, note); // добавляем в начало списка
+    Navigator.pop(context); // возвращаемся к списку
   }
 
   @override

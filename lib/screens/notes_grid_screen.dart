@@ -1,8 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
+import 'add_note_screen.dart';
 import 'edit_note_screen.dart';
+import '../data/note_data.dart';
+import '../models/note_model.dart';
 
 class NotesGridScreen extends StatefulWidget {
   const NotesGridScreen({super.key});
@@ -41,126 +42,81 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   Widget _buildGrid() {
-    final notes = [
-      {
-        'title': 'Купить',
-        'subtitle': 'Помидоры, хлеб, сосиски,\nмайонез, молоко и яйца',
-        'image': 'assets/images/watch.png',
-      },
-      {
-        'title': 'Позвонить по налогам',
-        'subtitle':
-        'Может ли налоговая проводить рейды и контрольные закупки...',
-        'image': 'assets/images/edward.png',
-      },
-      {
-        'title': '',
-        'subtitle': '',
-        'image': 'assets/images/kitten.png',
-      },
-    ];
+    final List<Note> notesToShow = notes;
 
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView.builder(
+      itemCount: notesToShow.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
       padding: const EdgeInsets.all(8),
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      children: [
-        _buildImageTile('assets/images/dog.png'),
-        _buildTextTile(notes[0]),
-        _buildTextTile(notes[1]),
-        _buildImageTile('assets/images/kitten.png'),
-        _buildImageTile('assets/images/edward.png'),
-        _buildImageTile('assets/images/watch.png'),
-      ],
-    );
-  }
+      itemBuilder: (context, index) {
+        final note = notesToShow[index];
+        return InkWell(
+          onTap: () async {
+            final updatedNote = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditNoteScreen(note: note),
+              ),
+            );
 
-  Widget _buildImageTile(String imagePath) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EditNoteScreen(initialImage: File(imagePath)),
-          ),
+            if (updatedNote != null) {
+              setState(() {
+                notes[index] = updatedNote;
+              });
+            }
+          },
+          child: _buildNoteTile(note),
         );
       },
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              image: DecorationImage(image: AssetImage(imagePath), fit: BoxFit.cover),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          const Positioned(
-            top: 8,
-            left: 8,
-            child: Icon(Icons.play_arrow, color: Colors.white, size: 30),
-          ),
-        ],
-      ),
     );
   }
-
-  Widget _buildTextTile(Map<String, String> note) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const EditNoteScreen(), // можно передать данные при необходимости
-          ),
-        );
-      },
-      child: Stack(
+  Widget _buildNoteTile(Note note) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withOpacity(0.6),
+        image: note.imagePath != null
+            ? DecorationImage(
+          image: AssetImage(note.imagePath!),
+          fit: BoxFit.cover,
+        )
+            : null,
+      ),
+      padding: const EdgeInsets.all(8),
+      child: note.title.isNotEmpty
+          ? Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (note['title'] != null && note['title']!.isNotEmpty)
-                  Text(
-                    note['title']!,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Georgia',
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                if (note['subtitle'] != null)
-                  Text(
-                    note['subtitle']!,
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
+          Text(
+            note.title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Georgia',
             ),
           ),
-          const Positioned(
-            top: 8,
-            left: 8,
-            child: Icon(Icons.play_arrow, color: Colors.black, size: 28),
+          const SizedBox(height: 4),
+          Text(
+            note.body,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
           ),
         ],
-      ),
+      )
+          : const SizedBox.shrink(),
     );
   }
-
   Widget _buildBottomBar() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12, top: 4),
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 12, top: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: const [
+        children: [
           _BottomNavButton(label: 'КОРЗИНА', icon: Icons.shopping_cart),
           Icon(Icons.circle, size: 24), // placeholder
           Icon(Icons.grid_view, size: 24),
@@ -177,11 +133,26 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isMenuOpen) ...[
-            _fabAction(Icons.videocam, 'Видео', () {}),
+            _fabAction(Icons.videocam, 'Видео', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddNoteScreen()),
+              );
+            }),
             const SizedBox(height: 12),
-            _fabAction(Icons.camera_alt, 'Камера', () {}),
+            _fabAction(Icons.camera_alt, 'Камера', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddNoteScreen()),
+              );
+            }),
             const SizedBox(height: 12),
-            _fabAction(Icons.mic, 'Голос', () {}),
+            _fabAction(Icons.mic, 'Голос', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddNoteScreen()),
+              );
+            }),
             const SizedBox(height: 12),
           ],
           FloatingActionButton(
