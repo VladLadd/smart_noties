@@ -7,6 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/note_model.dart';
 import '../data/note_data.dart';
+import '../widgets/color_picker_menu.dart';
+
+Color selectedColor = Colors.white;
 
 class AddNoteScreen extends StatefulWidget {
   const AddNoteScreen({super.key});
@@ -128,11 +131,24 @@ class _AddNoteScreenState extends State<AddNoteScreen>
                     icon: const Icon(Icons.arrow_back, size: 28),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.circle_outlined),
-                      SizedBox(width: 16),
-                      Icon(Icons.grid_view),
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(10.0),
+                          child: ColorPickerMenu(
+                            selectedColor: selectedColor,
+                            onColorSelected: (color) {
+                              setState(() {
+                                selectedColor = color;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.grid_view),
                     ],
                   ),
                 ],
