@@ -44,16 +44,17 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
 
     return OverlayEntry(
       builder: (context) => Positioned(
-        top: position.dy + buttonSize.height + 8,
+        top: position.dy + buttonSize.height + 5,
         left: position.dx,
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
-          offset: Offset(2, 50),
+          offset: Offset(-3, 50),
           child: Material(
             color: Colors.transparent,
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                  vertical: 12, horizontal: 4), // <-- паддинг для меню
               decoration: BoxDecoration(
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(25),
@@ -68,16 +69,20 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
                     },
                     child: Container(
                       margin: const EdgeInsets.symmetric(vertical: 6),
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: widget.selectedColor == color
-                              ? Colors.white
-                              : Colors.transparent,
-                          width: 3,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      // <-- горизонтальный паддинг вокруг круга
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: widget.selectedColor == color
+                                ? Colors.white
+                                : Colors.transparent,
+                            width: 3,
+                          ),
                         ),
                       ),
                     ),
