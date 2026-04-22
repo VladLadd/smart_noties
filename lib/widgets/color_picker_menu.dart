@@ -1,23 +1,15 @@
 import 'package:flutter/material.dart';
-
-final List<Color> noteColors = [
-  Colors.white,
-  Color(0xFFD0EAF8),
-  Color(0xFFF5EDD9),
-  Color(0xFFFFB494),
-  Color(0xFF99D9B1),
-  Color(0xFF7A7C87),
-];
+import '../data/note_data.dart';
 
 class ColorPickerMenu extends StatefulWidget {
   final Color selectedColor;
-  final Function(Color) onColorSelected;
+  final ValueChanged<Color> onColorSelected;
 
   const ColorPickerMenu({
-    Key? key,
+    super.key,
     required this.selectedColor,
     required this.onColorSelected,
-  }) : super(key: key);
+  });
 
   @override
   State<ColorPickerMenu> createState() => _ColorPickerMenuState();
@@ -38,23 +30,21 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
   }
 
   OverlayEntry _createOverlay() {
-    RenderBox renderBox = context.findRenderObject() as RenderBox;
-    Size buttonSize = renderBox.size;
-    Offset position = renderBox.localToGlobal(Offset.zero);
+    final renderBox = context.findRenderObject() as RenderBox;
 
     return OverlayEntry(
       builder: (context) => Positioned(
-        top: position.dy + buttonSize.height + 5,
-        left: position.dx,
+        top: renderBox.localToGlobal(Offset.zero).dy + renderBox.size.height + 5,
+        left: renderBox.localToGlobal(Offset.zero).dx,
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
-          offset: Offset(-3, 50),
+          offset: const Offset(-3, 50),
           child: Material(
             color: Colors.transparent,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  vertical: 12, horizontal: 4), // <-- паддинг для меню
+              padding:
+                  const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
               decoration: BoxDecoration(
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(25),
@@ -62,15 +52,15 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: noteColors.map((color) {
+                  final isSelected = widget.selectedColor == color;
                   return GestureDetector(
                     onTap: () {
                       widget.onColorSelected(color);
-                      _toggleOverlay(); // Закрыть после выбора
+                      _toggleOverlay();
                     },
                     child: Container(
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 6),
-                      // <-- горизонтальный паддинг вокруг круга
                       child: Container(
                         width: 40,
                         height: 40,
@@ -78,7 +68,7 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
                           color: color,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: widget.selectedColor == color
+                            color: isSelected
                                 ? Colors.white
                                 : Colors.transparent,
                             width: 3,

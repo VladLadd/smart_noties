@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
-import 'add_note_screen.dart';
-import 'edit_note_screen.dart';
-import '../data/note_data.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'note_edit_screen.dart';
+import '../providers/notes_provider.dart';
 import '../models/note_model.dart';
 
 class NotesGridScreen extends StatefulWidget {
@@ -13,18 +14,10 @@ class NotesGridScreen extends StatefulWidget {
 }
 
 class _NotesGridScreenState extends State<NotesGridScreen> {
-  bool isMenuOpen = false;
-
-  void toggleMenu() {
-    setState(() {
-      isMenuOpen = !isMenuOpen;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEAF7F6),
       body: SafeArea(
         child: Stack(
           children: [
@@ -42,10 +35,10 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   Widget _buildGrid() {
-    final List<Note> notesToShow = notes;
+    final notes = context.watch<NotesProvider>().notes;
 
     return GridView.builder(
-      itemCount: notesToShow.length,
+      itemCount: notes.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 8,
@@ -53,64 +46,88 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       ),
       padding: const EdgeInsets.all(8),
       itemBuilder: (context, index) {
-        final note = notesToShow[index];
+        final note = notes[index];
         return InkWell(
-          onTap: () async {
-            final updatedNote = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => EditNoteScreen(note: note),
-              ),
-            );
-
-            if (updatedNote != null) {
-              setState(() {
-                notes[index] = updatedNote;
-              });
-            }
-          },
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NoteEditScreen(initialNote: note),
+            ),
+          ),
+          onLongPress: () => _showDeleteDialog(note),
           child: _buildNoteTile(note),
         );
       },
     );
   }
+
+  void _showDeleteDialog(Note note) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить заметку?'),
+        content: Text(
+          note.title.isNotEmpty ? '«${note.title}»' : 'Заметка будет удалена.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<NotesProvider>().deleteNote(note.id);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNoteTile(Note note) {
+    ImageProvider? imageProvider;
+    if (note.imagePath != null) {
+      imageProvider = note.imagePath!.startsWith('assets/')
+          ? AssetImage(note.imagePath!) as ImageProvider
+          : FileImage(File(note.imagePath!));
+    }
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.white.withOpacity(0.6),
-        image: note.imagePath != null
-            ? DecorationImage(
-          image: AssetImage(note.imagePath!),
-          fit: BoxFit.cover,
-        )
+        color: note.color.withOpacity(0.85),
+        image: imageProvider != null
+            ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
             : null,
       ),
       padding: const EdgeInsets.all(8),
       child: note.title.isNotEmpty
           ? Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            note.title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Georgia',
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            note.body,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-        ],
-      )
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  note.title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Georgia',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  note.body,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            )
           : const SizedBox.shrink(),
     );
   }
+
   Widget _buildBottomBar() {
     return const Padding(
       padding: EdgeInsets.only(bottom: 12, top: 4),
@@ -118,7 +135,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _BottomNavButton(label: 'КОРЗИНА', icon: Icons.shopping_cart),
-          Icon(Icons.circle, size: 24), // placeholder
+          Icon(Icons.circle, size: 24),
           Icon(Icons.grid_view, size: 24),
         ],
       ),
@@ -129,55 +146,13 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     return Positioned(
       bottom: 60,
       right: 24,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isMenuOpen) ...[
-            _fabAction(Icons.videocam, 'Видео', () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddNoteScreen()),
-              );
-            }),
-            const SizedBox(height: 12),
-            _fabAction(Icons.camera_alt, 'Камера', () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddNoteScreen()),
-              );
-            }),
-            const SizedBox(height: 12),
-            _fabAction(Icons.mic, 'Голос', () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddNoteScreen()),
-              );
-            }),
-            const SizedBox(height: 12),
-          ],
-          FloatingActionButton(
-            onPressed: toggleMenu,
-            backgroundColor: Colors.black,
-            shape: const CircleBorder(),
-            elevation: 6,
-            child: Icon(
-              isMenuOpen ? Icons.close : Icons.add,
-              size: 32,
-              color: Colors.white,
-            ),
-          ),
-        ],
+      child: FloatingActionButton(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NoteEditScreen()),
+        ),
+        child: const Icon(Icons.add, size: 32),
       ),
-    );
-  }
-
-  Widget _fabAction(IconData icon, String label, VoidCallback onTap) {
-    return FloatingActionButton(
-      heroTag: label,
-      mini: true,
-      onPressed: onTap,
-      backgroundColor: Colors.black,
-      child: Icon(icon, color: Colors.white),
     );
   }
 }
@@ -192,12 +167,8 @@ class _BottomNavButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: () {},
-      icon: Icon(icon, color: Colors.black),
-      label: Text(label, style: const TextStyle(color: Colors.black)),
-      style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: Colors.black),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
+      icon: Icon(icon),
+      label: Text(label),
     );
   }
 }

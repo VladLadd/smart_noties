@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  provider: ^6.1.2
   image_picker: ^1.0.4
   flutter_sound: ^9.2.13
   permission_handler: ^11.3.1
