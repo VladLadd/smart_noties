@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'note_edit_screen.dart';
 import '../providers/notes_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/note_model.dart';
 
 class NotesGridScreen extends StatefulWidget {
@@ -129,14 +130,41 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   Widget _buildBottomBar() {
-    return const Padding(
-      padding: EdgeInsets.only(bottom: 12, top: 4),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, top: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _BottomNavButton(label: 'КОРЗИНА', icon: Icons.shopping_cart),
-          Icon(Icons.circle, size: 24),
-          Icon(Icons.grid_view, size: 24),
+          const _BottomNavButton(label: 'КОРЗИНА', icon: Icons.shopping_cart),
+          const Icon(Icons.circle, size: 24),
+          const Icon(Icons.grid_view, size: 24),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Выйти',
+            onPressed: () => _confirmLogout(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Выйти из аккаунта?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<AuthProvider>().logout();
+            },
+            child: const Text('Выйти', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );

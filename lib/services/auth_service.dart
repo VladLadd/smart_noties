@@ -91,6 +91,22 @@ class AuthService {
     return prefs.getString(_tokenKey);
   }
 
+  Future<void> logout(String token) async {
+    try {
+      await http
+          .post(
+            Uri.parse('$_baseUrl/api/auth/logout'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // ignore network errors — clear local session regardless
+    }
+  }
+
   Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);

@@ -42,6 +42,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    if (token != null) await _service.logout(token!);
     await _service.clearToken();
     token = null;
     userId = null;
