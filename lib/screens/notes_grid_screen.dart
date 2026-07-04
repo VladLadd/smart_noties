@@ -77,8 +77,18 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
           ),
           TextButton(
             onPressed: () {
-              context.read<NotesProvider>().deleteNote(note.id);
+              final messenger = ScaffoldMessenger.of(context);
+              final provider = context.read<NotesProvider>();
+              final token = context.read<AuthProvider>().token;
               Navigator.pop(ctx);
+              provider.deleteNote(note.id, token: token).catchError((e) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('$e'),
+                    backgroundColor: Colors.red[700],
+                  ),
+                );
+              });
             },
             child: const Text('Удалить', style: TextStyle(color: Colors.red)),
           ),
@@ -104,8 +114,10 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
             : null,
       ),
       padding: const EdgeInsets.all(8),
-      child: note.title.isNotEmpty
-          ? Column(
+      child: Stack(
+        children: [
+          if (note.title.isNotEmpty)
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -124,8 +136,31 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ],
-            )
-          : const SizedBox.shrink(),
+            ),
+          if (note.isPending)
+            const Positioned(
+              top: 0,
+              right: 0,
+              child: Tooltip(
+                message: 'Не отправлено на сервер',
+                child: Icon(Icons.cloud_off, size: 18, color: Colors.orange),
+              ),
+            ),
+          if (note.isVoice)
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.mic, size: 14, color: Colors.white),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

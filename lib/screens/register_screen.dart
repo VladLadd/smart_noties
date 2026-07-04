@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -39,17 +38,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             password: _passwordCtrl.text,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Регистрация прошла успешно! Войдите в аккаунт.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      // После register() юзер уже авторизован (AuthProvider.status == authenticated).
+      // Возвращаемся к корню — _HomeRouter покажет экран заметок/старта.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,10 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     Text('Уже есть аккаунт? ', style: TextStyle(color: Colors.grey[600])),
                     GestureDetector(
-                      onTap: () => Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      ),
+                      onTap: () => Navigator.pop(context),
                       child: const Text(
                         'Войти',
                         style: TextStyle(

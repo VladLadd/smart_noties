@@ -9,7 +9,9 @@ import 'package:provider/provider.dart';
 import '../models/note_model.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/api_config.dart';
 import '../widgets/color_picker_menu.dart';
+import '../widgets/voice_message_player.dart';
 
 class NoteEditScreen extends StatefulWidget {
   final Note? initialNote;
@@ -21,7 +23,7 @@ class NoteEditScreen extends StatefulWidget {
 }
 
 class _NoteEditScreenState extends State<NoteEditScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
   late Color _selectedColor;
@@ -31,13 +33,15 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   bool _isRecording = false;
   String? _recordedPath;
   int _recordSeconds = 0;
+  int _recordedDuration = 0; // длительность завершённой записи, сек
   Timer? _timer;
 
   final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
-  final FlutterSoundPlayer _player = FlutterSoundPlayer();
   late AnimationController _animController;
+  late AnimationController _pulseController;
 
   bool _saving = false;
+  bool _syncing = false;
 
   bool get _isEditing => widget.initialNote != null;
 
@@ -64,8 +68,12 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       duration: const Duration(milliseconds: 300),
     )..forward();
 
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..repeat(reverse: true);
+
     _recorder.openRecorder();
-    _player.openPlayer();
   }
 
   @override
@@ -73,8 +81,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     _titleController.dispose();
     _bodyController.dispose();
     _recorder.closeRecorder();
-    _player.closePlayer();
     _animController.dispose();
+    _pulseController.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -125,9 +133,19 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   Future<void> _toggleRecording() async {
     if (!_isRecording) {
       final status = await Permission.microphone.request();
-      if (!status.isGranted) return;
+      if (!status.isGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Нужен доступ к микрофону для записи'),
+          ),
+        );
+        return;
+      }
 
-      final path = '${Directory.systemTemp.path}/note_voice_${widget.initialNote?.id ?? 'new'}.aac';
+      // Уникальное имя, чтобы новая запись не путалась с прежним файлом.
+      final path =
+          '${Directory.systemTemp.path}/note_voice_${DateTime.now().millisecondsSinceEpoch}.aac';
       await _recorder.startRecorder(toFile: path);
       setState(() {
         _isRecording = true;
@@ -140,13 +158,63 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     } else {
       await _recorder.stopRecorder();
       _timer?.cancel();
-      setState(() => _isRecording = false);
+      setState(() {
+        _isRecording = false;
+        _recordedDuration = _recordSeconds;
+      });
     }
   }
 
-  Future<void> _playRecording() async {
-    if (_recordedPath != null) {
-      await _player.startPlayer(fromURI: _recordedPath);
+  Future<void> _deleteRecording() async {
+    if (_isRecording) {
+      await _recorder.stopRecorder();
+      _timer?.cancel();
+    }
+    // Временный файл записи чистим; сохранённые заметки удаляют файл при сохранении.
+    final path = _recordedPath;
+    if (path != null && path.contains('note_voice_')) {
+      final file = File(path);
+      if (await file.exists()) {
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _isRecording = false;
+      _recordedPath = null;
+      _recordedDuration = 0;
+      _recordSeconds = 0;
+    });
+  }
+
+  Future<void> _syncNote() async {
+    if (_syncing) return;
+    final auth = context.read<AuthProvider>();
+    final userId = auth.userId;
+    final token = auth.token;
+    if (userId == null || token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Необходима авторизация для отправки')),
+      );
+      return;
+    }
+    setState(() => _syncing = true);
+    try {
+      await context.read<NotesProvider>().syncNote(
+        widget.initialNote!,
+        userId: userId,
+        token: token,
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
+      );
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
   }
 
@@ -159,33 +227,55 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     final imagePath = _imageFile?.path ?? _assetImagePath;
 
     try {
+      // Свежую локальную запись заливаем на сервер → в заметке будет URL.
+      String? voicePath = _recordedPath;
+      if (voicePath != null &&
+          !isRemoteMedia(voicePath) &&
+          auth.token != null &&
+          auth.token!.isNotEmpty) {
+        final file = File(voicePath);
+        if (await file.exists()) {
+          try {
+            voicePath = await provider.uploadVoice(file, auth.token!);
+          } catch (_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Голос не загружен, сохранён локально'),
+                  backgroundColor: Colors.orange[800],
+                ),
+              );
+            }
+            // оставляем локальный путь — заметка сохранится, голос локальный
+          }
+        }
+      }
+
       if (_isEditing) {
         final updated = widget.initialNote!.copyWith(
           title: _titleController.text,
           body: _bodyController.text,
           imagePath: imagePath,
           clearImagePath: imagePath == null,
-          voicePath: _recordedPath,
-          clearVoicePath: _recordedPath == null,
-          isVoice: _recordedPath != null,
+          voicePath: voicePath,
+          clearVoicePath: voicePath == null,
+          isVoice: voicePath != null,
           color: _selectedColor,
         );
         provider.updateNote(updated);
       } else {
-        final userId = auth.userId ?? 0;
-        final token = auth.token ?? '';
         await provider.addNote(
           Note(
             id: '',
             title: _titleController.text,
             body: _bodyController.text,
             imagePath: imagePath,
-            voicePath: _recordedPath,
-            isVoice: _recordedPath != null,
+            voicePath: voicePath,
+            isVoice: voicePath != null,
             color: _selectedColor,
           ),
-          userId: userId,
-          token: token,
+          userId: auth.userId,
+          token: auth.token,
         );
       }
       if (mounted) Navigator.pop(context);
@@ -209,7 +299,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             const Divider(),
             _buildImagePreview(),
             _buildTextFields(),
-            if (_recordedPath != null) _buildVoiceStatus(),
+            _buildVoiceSection(),
             const Spacer(),
             _buildBottomActions(),
           ],
@@ -230,6 +320,20 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           ),
           Row(
             children: [
+              if (_isEditing && widget.initialNote!.isPending) ...[
+                _syncing
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.cloud_upload_outlined, color: Colors.orange),
+                        tooltip: 'Отправить на сервер',
+                        onPressed: _syncNote,
+                      ),
+                const SizedBox(width: 8),
+              ],
               ColorPickerMenu(
                 selectedColor: _selectedColor,
                 onColorSelected: _onColorSelected,
@@ -299,26 +403,68 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     );
   }
 
-  Widget _buildVoiceStatus() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Column(
+  Widget _buildVoiceSection() {
+    if (_isRecording) return _buildRecordingPanel();
+    if (_recordedPath != null) {
+      return VoiceMessagePlayer(
+        key: ValueKey(_recordedPath),
+        path: _recordedPath!,
+        token: context.read<AuthProvider>().token,
+        initialDuration: _recordedDuration > 0
+            ? Duration(seconds: _recordedDuration)
+            : null,
+        onDelete: _deleteRecording,
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildRecordingPanel() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
         children: [
-          Text(
-            _isRecording
-                ? 'Запись... ${_recordSeconds}s'
-                : 'Голосовая заметка сохранена',
-            style: const TextStyle(color: Colors.grey),
-          ),
-          if (!_isRecording)
-            TextButton.icon(
-              onPressed: _playRecording,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Прослушать'),
+          FadeTransition(
+            opacity: _pulseController,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
             ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Запись  ${_fmt(Duration(seconds: _recordSeconds))}',
+            style: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.w600,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: _toggleRecording,
+            icon: const Icon(Icons.stop_circle, color: Colors.red),
+            label: const Text('Стоп', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   Widget _buildBottomActions() {
@@ -342,7 +488,12 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           ),
           Row(
             children: [
-              _animatedIcon(Icons.mic, delay: 0, onTap: _toggleRecording),
+              _animatedIcon(
+                _isRecording ? Icons.stop : Icons.mic,
+                delay: 0,
+                onTap: _toggleRecording,
+                background: _isRecording ? Colors.red : Colors.black,
+              ),
               const SizedBox(width: 16),
               _animatedIcon(Icons.camera_alt, delay: 100,
                   onTap: () => _pickImage(ImageSource.camera)),
@@ -357,7 +508,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Widget _animatedIcon(IconData icon,
-      {required int delay, VoidCallback? onTap}) {
+      {required int delay, VoidCallback? onTap, Color background = Colors.black}) {
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _animController,
@@ -366,9 +517,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.black,
+            color: background,
           ),
           padding: const EdgeInsets.all(12),
           child: Icon(icon, color: Colors.white),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/note_data.dart';
+import 'color_picker_dialog.dart';
 
 class ColorPickerMenu extends StatefulWidget {
   final Color selectedColor;
@@ -24,8 +25,26 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
       _overlayEntry = _createOverlay();
       Overlay.of(context).insert(_overlayEntry!);
     } else {
-      _overlayEntry?.remove();
-      _overlayEntry = null;
+      _closeOverlay();
+    }
+  }
+
+  void _closeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  // Цвет считается кастомным, если его нет в стандартной палитре.
+  bool get _isCustomSelected => !noteColors.contains(widget.selectedColor);
+
+  Future<void> _openCustomPicker() async {
+    _closeOverlay();
+    final picked = await showCustomColorPicker(
+      context,
+      initialColor: widget.selectedColor,
+    );
+    if (picked != null) {
+      widget.onColorSelected(picked);
     }
   }
 
@@ -51,33 +70,36 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: noteColors.map((color) {
-                  final isSelected = widget.selectedColor == color;
-                  return GestureDetector(
-                    onTap: () {
-                      widget.onColorSelected(color);
-                      _toggleOverlay();
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected
-                                ? Colors.white
-                                : Colors.transparent,
-                            width: 3,
-                          ),
-                        ),
-                      ),
+                children: [
+                  ...noteColors.map((color) {
+                    final isSelected = widget.selectedColor == color;
+                    return _MenuItem(
+                      isSelected: isSelected,
+                      color: color,
+                      onTap: () {
+                        widget.onColorSelected(color);
+                        _closeOverlay();
+                      },
+                    );
+                  }),
+                  // Пункт «мультиколор» — открывает color picker.
+                  _MenuItem(
+                    isSelected: _isCustomSelected,
+                    gradient: const SweepGradient(
+                      colors: [
+                        Color(0xFFFF0000),
+                        Color(0xFFFFFF00),
+                        Color(0xFF00FF00),
+                        Color(0xFF00FFFF),
+                        Color(0xFF0000FF),
+                        Color(0xFFFF00FF),
+                        Color(0xFFFF0000),
+                      ],
                     ),
-                  );
-                }).toList(),
+                    onTap: _openCustomPicker,
+                    child: const Icon(Icons.add, color: Colors.white, size: 20),
+                  ),
+                ],
               ),
             ),
           ),
@@ -116,6 +138,48 @@ class _ColorPickerMenuState extends State<ColorPickerMenu> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Круглый пункт меню палитры (стандартный цвет или «мультиколор»).
+class _MenuItem extends StatelessWidget {
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Color? color;
+  final Gradient? gradient;
+  final Widget? child;
+
+  const _MenuItem({
+    required this.isSelected,
+    required this.onTap,
+    this.color,
+    this.gradient,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color,
+            gradient: gradient,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected ? Colors.white : Colors.transparent,
+              width: 3,
+            ),
+          ),
+          child: child,
         ),
       ),
     );

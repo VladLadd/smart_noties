@@ -7,7 +7,10 @@ plugins {
 
 android {
     namespace = "com.example.smart_noties"
-    compileSdk = flutter.compileSdkVersion
+    // AGP 7.3.0 использует старый aapt2, который не читает ресурсы android-35
+    // (aapt2 E RES_TABLE_TYPE_TYPE ... failed to load android.jar). Компилируем
+    // против 34; предупреждения плагинов про SDK 35 некритичны (обратно совместимы).
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_config.dart';
 
-const String _baseUrl = 'http://localhost:8070';
+final String _baseUrl = apiBaseUrl;
 const String _tokenKey = 'auth_token';
 const String _userIdKey = 'user_id';
 
@@ -13,11 +14,16 @@ class AuthUser {
 
   const AuthUser({required this.id, required this.name, required this.email});
 
-  factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
-        id: json['id']?.toString() ?? '',
-        name: json['name'] ?? '',
-        email: json['email'] ?? '',
-      );
+  factory AuthUser.fromJson(Map<String, dynamic> json) {
+    // ignore: avoid_print
+    print('[AUTH] AuthUser.fromJson keys=${json.keys.toList()} values=$json');
+    final rawId = json['id'] ?? json['userId'] ?? json['user_id'];
+    return AuthUser(
+      id: rawId?.toString() ?? '',
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
+    );
+  }
 }
 
 class AuthException implements Exception {

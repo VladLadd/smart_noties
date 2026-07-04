@@ -110,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Text('Нет аккаунта? ', style: TextStyle(color: Colors.grey[600])),
                     GestureDetector(
-                      onTap: () => Navigator.pushReplacement(
+                      onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const RegisterScreen()),
                       ),

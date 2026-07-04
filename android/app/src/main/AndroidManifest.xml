@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Запись голосовых заметок (flutter_sound) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="smart_noties"
         android:name="${applicationName}"

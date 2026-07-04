@@ -9,6 +9,7 @@ class Note {
   final bool isVoice;
   final bool isVideo;
   final Color color;
+  final bool isPending;
 
   const Note({
     required this.id,
@@ -19,6 +20,7 @@ class Note {
     this.isVoice = false,
     this.isVideo = false,
     this.color = Colors.white,
+    this.isPending = false,
   });
 
   Note copyWith({
@@ -30,6 +32,7 @@ class Note {
     bool? isVoice,
     bool? isVideo,
     Color? color,
+    bool? isPending,
     bool clearImagePath = false,
     bool clearVoicePath = false,
   }) {
@@ -42,6 +45,31 @@ class Note {
       isVoice: isVoice ?? this.isVoice,
       isVideo: isVideo ?? this.isVideo,
       color: color ?? this.color,
+      isPending: isPending ?? this.isPending,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'body': body,
+    'imagePath': imagePath,
+    'voicePath': voicePath,
+    'isVoice': isVoice,
+    'isVideo': isVideo,
+    'color': color.value,
+    'isPending': isPending,
+  };
+
+  factory Note.fromJson(Map<String, dynamic> json) => Note(
+    id: json['id'] as String,
+    title: json['title'] as String,
+    body: json['body'] as String,
+    imagePath: json['imagePath'] as String?,
+    voicePath: json['voicePath'] as String?,
+    isVoice: json['isVoice'] as bool? ?? false,
+    isVideo: json['isVideo'] as bool? ?? false,
+    color: Color(json['color'] as int? ?? 0xFFFFFFFF),
+    isPending: json['isPending'] as bool? ?? false,
+  );
 }
