@@ -12,6 +12,7 @@ class AuthProvider extends ChangeNotifier {
   AuthUser? user;
   String? token;
   int? userId;
+  String? email;
 
   AuthProvider() {
     _tryAutoLogin();
@@ -27,6 +28,7 @@ class AuthProvider extends ChangeNotifier {
 
     token = savedToken;
     userId = await _service.loadUserId() ?? _extractUserIdFromJwt(savedToken);
+    email = _extractEmailFromJwt(savedToken);
     // ignore: avoid_print
     print('[AUTH] auto-login: userId=$userId token=${savedToken.substring(0, 20)}...');
 
@@ -60,6 +62,7 @@ class AuthProvider extends ChangeNotifier {
     token = null;
     userId = null;
     user = null;
+    email = null;
     status = AuthStatus.unauthenticated;
     notifyListeners();
   }
@@ -68,6 +71,9 @@ class AuthProvider extends ChangeNotifier {
     token = result.token;
     user = result.user;
     userId = int.tryParse(result.user.id) ?? _extractUserIdFromJwt(result.token);
+    email = result.user.email.isNotEmpty
+        ? result.user.email
+        : _extractEmailFromJwt(result.token);
     // ignore: avoid_print
     print('[AUTH] _persist: raw id="${result.user.id}" parsed userId=$userId');
     await _service.saveToken(result.token);
@@ -92,6 +98,23 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       // ignore: avoid_print
       print('[AUTH] JWT parse error: $e');
+      return null;
+    }
+  }
+
+  // Достаёт email из payload JWT (бэкенд кладёт его в claims).
+  String? _extractEmailFromJwt(String jwt) {
+    try {
+      final parts = jwt.split('.');
+      if (parts.length != 3) return null;
+      final payload = base64Url.normalize(parts[1]);
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final json = jsonDecode(decoded) as Map<String, dynamic>;
+      final raw = json['email'];
+      return raw is String && raw.isNotEmpty ? raw : null;
+    } catch (e) {
+      // ignore: avoid_print
+      print('[AUTH] JWT email parse error: $e');
       return null;
     }
   }

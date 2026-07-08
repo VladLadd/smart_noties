@@ -36,6 +36,8 @@ dependencies:
   permission_handler: ^11.3.1
   http: ^1.2.0
   shared_preferences: ^2.3.0
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
 
 
   # The following adds the Cupertino Icons font to your application.

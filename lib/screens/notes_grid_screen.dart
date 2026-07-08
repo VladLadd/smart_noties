@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'note_edit_screen.dart';
+import 'profile_screen.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/note_model.dart';
@@ -170,36 +171,16 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          const _BottomNavButton(label: 'КОРЗИНА', icon: Icons.shopping_cart),
+          _BottomNavButton(
+            label: 'ПРОФИЛЬ',
+            icon: Icons.person,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+          ),
           const Icon(Icons.circle, size: 24),
           const Icon(Icons.grid_view, size: 24),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Выйти',
-            onPressed: () => _confirmLogout(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmLogout() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Выйти из аккаунта?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.read<AuthProvider>().logout();
-            },
-            child: const Text('Выйти', style: TextStyle(color: Colors.red)),
-          ),
         ],
       ),
     );
@@ -223,13 +204,18 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
 class _BottomNavButton extends StatelessWidget {
   final String label;
   final IconData icon;
+  final VoidCallback? onPressed;
 
-  const _BottomNavButton({required this.label, required this.icon});
+  const _BottomNavButton({
+    required this.label,
+    required this.icon,
+    this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
-      onPressed: () {},
+      onPressed: onPressed ?? () {},
       icon: Icon(icon),
       label: Text(label),
     );
