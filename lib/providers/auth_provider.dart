@@ -56,6 +56,13 @@ class AuthProvider extends ChangeNotifier {
     await _persist(result);
   }
 
+  Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    await _service.resetPassword(email: email, newPassword: newPassword);
+  }
+
   Future<void> logout() async {
     if (token != null) await _service.logout(token!);
     await _service.clearToken();

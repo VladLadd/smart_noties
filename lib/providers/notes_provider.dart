@@ -101,6 +101,60 @@ class NotesProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> updateNoteProtection(
+    Note note, {
+    required bool isProtected,
+    required String? password,
+    required String? token,
+  }) async {
+    final updated = note.copyWith(
+      isProtected: isProtected,
+      protectionPassword: isProtected ? password : null,
+      clearProtectionPassword: !isProtected,
+    );
+    updateNote(updated);
+    await _service.savePendingNotes(_notes.toList());
+
+    if (!note.isPending) {
+      if (token == null || token.isEmpty) {
+        throw Exception('Необходима авторизация');
+      }
+      await _service.updateNoteProtection(
+        id: note.id,
+        isProtected: isProtected,
+        password: password,
+        token: token,
+      );
+    }
+  }
+
+  Future<void> verifyNotePassword(
+    Note note, {
+    required String password,
+    required String? token,
+  }) async {
+    if (!note.hasProtection) return;
+
+    if (note.protectionPassword != null && note.protectionPassword!.isNotEmpty) {
+      if (note.protectionPassword == password) return;
+      throw Exception('Неверный пароль');
+    }
+
+    if (note.isPending) {
+      throw Exception('Неверный пароль');
+    }
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Необходима авторизация');
+    }
+
+    await _service.verifyNotePassword(
+      id: note.id,
+      password: password,
+      token: token,
+    );
+  }
+
   Future<void> deleteNote(String id, {String? token}) async {
     final index = _notes.indexWhere((n) => n.id == id);
     if (index == -1) return;

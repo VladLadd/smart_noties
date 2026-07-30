@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'note_edit_screen.dart';
+import 'profile_screen.dart';
 
 class StartScreen extends StatelessWidget {
   const StartScreen({super.key});
@@ -15,14 +16,31 @@ class StartScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'У вас пока\nнет заметок',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Georgia',
-                      height: 1.2,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'У вас пока\nнет заметок',
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Georgia',
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Профиль',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ProfileScreen(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.person_outline, size: 28),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
                   Text(

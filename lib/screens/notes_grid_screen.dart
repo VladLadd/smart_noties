@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'note_edit_screen.dart';
+import 'note_view_screen.dart';
 import 'profile_screen.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
@@ -16,7 +17,6 @@ class NotesGridScreen extends StatefulWidget {
 }
 
 class _NotesGridScreenState extends State<NotesGridScreen> {
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,16 +50,87 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       itemBuilder: (context, index) {
         final note = notes[index];
         return InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => NoteEditScreen(initialNote: note),
-            ),
-          ),
-          onLongPress: () => _showDeleteDialog(note),
+          onTap: () => _openNote(note),
+          onLongPress: () => _showNoteActions(note),
           child: _buildNoteTile(note),
         );
       },
+    );
+  }
+
+  Future<void> _openNote(Note note) async {
+    if (note.hasProtection) {
+      final password = await _showProtectedNoteDialog();
+      if (password == null) return;
+
+      try {
+        await context.read<NotesProvider>().verifyNotePassword(
+              note,
+              password: password,
+              token: context.read<AuthProvider>().token,
+            );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NoteViewScreen(
+          note: note,
+          initiallyUnlocked: note.hasProtection,
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _showProtectedNoteDialog() {
+    return showDialog<String>(
+      context: context,
+      builder: (_) => const _ProtectedNotePasswordDialog(),
+    );
+  }
+
+  void _showNoteActions(Note note) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Редактировать'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => NoteEditScreen(initialNote: note),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text(
+                'Удалить',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _showDeleteDialog(note);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -100,7 +171,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
 
   Widget _buildNoteTile(Note note) {
     ImageProvider? imageProvider;
-    if (note.imagePath != null) {
+    if (!note.hasProtection && note.imagePath != null) {
       imageProvider = note.imagePath!.startsWith('assets/')
           ? AssetImage(note.imagePath!) as ImageProvider
           : FileImage(File(note.imagePath!));
@@ -117,7 +188,34 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       padding: const EdgeInsets.all(8),
       child: Stack(
         children: [
-          if (note.title.isNotEmpty)
+          if (note.hasProtection)
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lock, size: 32),
+                  SizedBox(height: 8),
+                  Text(
+                    'Защищённая\nзаметка',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (note.hasProtection)
+            Positioned(
+              top: 0,
+              right: note.isPending ? 24 : 0,
+              child: const Tooltip(
+                message: 'Защищённая заметка',
+                child: Icon(Icons.lock, size: 18),
+              ),
+            ),
+          if (!note.hasProtection && note.title.isNotEmpty)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -147,7 +245,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                 child: Icon(Icons.cloud_off, size: 18, color: Colors.orange),
               ),
             ),
-          if (note.isVoice)
+          if (!note.hasProtection && note.isVoice)
             Positioned(
               bottom: 0,
               right: 0,
@@ -218,6 +316,65 @@ class _BottomNavButton extends StatelessWidget {
       onPressed: onPressed ?? () {},
       icon: Icon(icon),
       label: Text(label),
+    );
+  }
+}
+
+class _ProtectedNotePasswordDialog extends StatefulWidget {
+  const _ProtectedNotePasswordDialog();
+
+  @override
+  State<_ProtectedNotePasswordDialog> createState() =>
+      _ProtectedNotePasswordDialogState();
+}
+
+class _ProtectedNotePasswordDialogState
+    extends State<_ProtectedNotePasswordDialog> {
+  final _passwordCtrl = TextEditingController();
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Защищённая заметка'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Для чтения этой заметки введите пароль.'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _passwordCtrl,
+            obscureText: _obscure,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Пароль',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscure ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              ),
+            ),
+            onSubmitted: (value) => Navigator.pop(context, value),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _passwordCtrl.text),
+          child: const Text('Открыть'),
+        ),
+      ],
     );
   }
 }

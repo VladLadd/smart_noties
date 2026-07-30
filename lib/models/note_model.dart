@@ -10,6 +10,12 @@ class Note {
   final bool isVideo;
   final Color color;
   final bool isPending;
+  final bool isProtected;
+  final String? protectionPassword;
+
+  bool get hasProtection =>
+      isProtected ||
+      (protectionPassword != null && protectionPassword!.isNotEmpty);
 
   const Note({
     required this.id,
@@ -21,6 +27,8 @@ class Note {
     this.isVideo = false,
     this.color = Colors.white,
     this.isPending = false,
+    this.isProtected = false,
+    this.protectionPassword,
   });
 
   Note copyWith({
@@ -33,8 +41,11 @@ class Note {
     bool? isVideo,
     Color? color,
     bool? isPending,
+    bool? isProtected,
+    String? protectionPassword,
     bool clearImagePath = false,
     bool clearVoicePath = false,
+    bool clearProtectionPassword = false,
   }) {
     return Note(
       id: id ?? this.id,
@@ -46,6 +57,10 @@ class Note {
       isVideo: isVideo ?? this.isVideo,
       color: color ?? this.color,
       isPending: isPending ?? this.isPending,
+      isProtected: isProtected ?? this.isProtected,
+      protectionPassword: clearProtectionPassword
+          ? null
+          : (protectionPassword ?? this.protectionPassword),
     );
   }
 
@@ -59,6 +74,8 @@ class Note {
     'isVideo': isVideo,
     'color': color.value,
     'isPending': isPending,
+    'isProtected': isProtected,
+    'protectionPassword': protectionPassword,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -71,5 +88,14 @@ class Note {
     isVideo: json['isVideo'] as bool? ?? false,
     color: Color(json['color'] as int? ?? 0xFFFFFFFF),
     isPending: json['isPending'] as bool? ?? false,
+    isProtected: _readBool(json['isProtected']),
+    protectionPassword: json['protectionPassword'] as String?,
   );
+
+  static bool _readBool(Object? value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) return value.toLowerCase() == 'true' || value == '1';
+    return false;
+  }
 }

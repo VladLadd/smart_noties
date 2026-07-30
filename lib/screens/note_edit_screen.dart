@@ -15,8 +15,13 @@ import '../widgets/voice_message_player.dart';
 
 class NoteEditScreen extends StatefulWidget {
   final Note? initialNote;
+  final bool initiallyUnlocked;
 
-  const NoteEditScreen({super.key, this.initialNote});
+  const NoteEditScreen({
+    super.key,
+    this.initialNote,
+    this.initiallyUnlocked = false,
+  });
 
   @override
   State<NoteEditScreen> createState() => _NoteEditScreenState();
@@ -35,6 +40,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   int _recordSeconds = 0;
   int _recordedDuration = 0; // длительность завершённой записи, сек
   Timer? _timer;
+  bool _isProtected = false;
+  String? _protectionPassword;
 
   final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
   late AnimationController _animController;
@@ -42,6 +49,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   bool _saving = false;
   bool _syncing = false;
+  bool _isLocked = false;
 
   bool get _isEditing => widget.initialNote != null;
 
@@ -53,6 +61,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     _titleController = TextEditingController(text: note?.title ?? '');
     _bodyController = TextEditingController(text: note?.body ?? '');
     _selectedColor = note?.color ?? Colors.white;
+    _isProtected = note?.hasProtection ?? false;
+    _protectionPassword = note?.protectionPassword;
+    _isLocked = _isProtected && !widget.initiallyUnlocked;
 
     if (note?.imagePath != null) {
       if (note!.imagePath!.startsWith('assets/')) {
@@ -74,6 +85,10 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     )..repeat(reverse: true);
 
     _recorder.openRecorder();
+
+    if (_isLocked) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestUnlock());
+    }
   }
 
   @override
@@ -88,6 +103,38 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   bool get _hasImage => _imageFile != null || _assetImagePath != null;
+
+  Future<void> _requestUnlock() async {
+    final note = widget.initialNote;
+    if (note == null || !_isLocked) return;
+
+    final password = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _ProtectedNoteUnlockDialog(),
+    );
+
+    if (!mounted) return;
+    if (password == null) {
+      Navigator.pop(context);
+      return;
+    }
+
+    try {
+      await context.read<NotesProvider>().verifyNotePassword(
+            note,
+            password: password,
+            token: context.read<AuthProvider>().token,
+          );
+      if (!mounted) return;
+      setState(() => _isLocked = false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+      );
+    }
+  }
 
   Future<void> _onColorSelected(Color color) async {
     if (_hasImage) {
@@ -261,6 +308,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           clearVoicePath: voicePath == null,
           isVoice: voicePath != null,
           color: _selectedColor,
+          isProtected: _isProtected,
+          protectionPassword: _protectionPassword,
+          clearProtectionPassword: !_isProtected,
         );
         provider.updateNote(updated);
       } else {
@@ -273,6 +323,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             voicePath: voicePath,
             isVoice: voicePath != null,
             color: _selectedColor,
+            isProtected: _isProtected,
+            protectionPassword: _isProtected ? _protectionPassword : null,
           ),
           userId: auth.userId,
           token: auth.token,
@@ -291,6 +343,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLocked) return _buildLockedScreen();
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -303,6 +357,51 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             const Spacer(),
             _buildBottomActions(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLockedScreen() {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 28),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+              const Spacer(),
+              const Icon(Icons.lock, size: 48),
+              const SizedBox(height: 16),
+              const Text(
+                'Защищённая заметка',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Georgia',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Введите пароль, чтобы читать и редактировать заметку.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _requestUnlock,
+                icon: const Icon(Icons.lock_open),
+                label: const Text('Ввести пароль'),
+              ),
+              const Spacer(),
+            ],
+          ),
         ),
       ),
     );
@@ -338,6 +437,12 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 selectedColor: _selectedColor,
                 onColorSelected: _onColorSelected,
               ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(_isProtected ? Icons.lock : Icons.lock_open),
+                tooltip: _isProtected ? 'Изменить защиту' : 'Защитить заметку',
+                onPressed: _showProtectionDialog,
+              ),
               const SizedBox(width: 16),
               const Icon(Icons.grid_view),
             ],
@@ -345,6 +450,42 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _showProtectionDialog() async {
+    final result = await showDialog<_ProtectionResult>(
+      context: context,
+      builder: (_) => _NoteProtectionDialog(
+        isProtected: _isProtected,
+        initialPassword: _protectionPassword,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    if (_isEditing) {
+      try {
+        await context.read<NotesProvider>().updateNoteProtection(
+              widget.initialNote!,
+              isProtected: result.enabled,
+              password: result.password,
+              token: context.read<AuthProvider>().token,
+            );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Защита включена локально. Перезапустите backend для сохранения на сервере.',
+            ),
+            backgroundColor: Colors.orange[800],
+          ),
+        );
+      }
+    }
+    setState(() {
+      _isProtected = result.enabled;
+      _protectionPassword = result.enabled ? result.password : null;
+    });
   }
 
   Widget _buildImagePreview() {
@@ -525,6 +666,188 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           child: Icon(icon, color: Colors.white),
         ),
       ),
+    );
+  }
+}
+
+class _ProtectionResult {
+  final bool enabled;
+  final String? password;
+
+  const _ProtectionResult({
+    required this.enabled,
+    this.password,
+  });
+}
+
+class _NoteProtectionDialog extends StatefulWidget {
+  final bool isProtected;
+  final String? initialPassword;
+
+  const _NoteProtectionDialog({
+    required this.isProtected,
+    this.initialPassword,
+  });
+
+  @override
+  State<_NoteProtectionDialog> createState() => _NoteProtectionDialogState();
+}
+
+class _NoteProtectionDialogState extends State<_NoteProtectionDialog> {
+  late final TextEditingController _passwordCtrl;
+  late final TextEditingController _confirmCtrl;
+  bool _obscure = true;
+  bool _obscureConfirm = true;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordCtrl = TextEditingController(text: widget.initialPassword ?? '');
+    _confirmCtrl = TextEditingController(text: widget.initialPassword ?? '');
+  }
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final password = _passwordCtrl.text;
+    if (password.length < 6) {
+      setState(() => _errorText = 'Пароль должен быть не короче 6 символов');
+      return;
+    }
+    if (password != _confirmCtrl.text) {
+      setState(() => _errorText = 'Пароли не совпадают');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _ProtectionResult(enabled: true, password: password),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Защита заметки'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _passwordCtrl,
+            obscureText: _obscure,
+            decoration: InputDecoration(
+              labelText: 'Пароль',
+              errorText: _errorText,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscure ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _confirmCtrl,
+            obscureText: _obscureConfirm,
+            decoration: InputDecoration(
+              labelText: 'Подтвердите пароль',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+            ),
+            onSubmitted: (_) => _save(),
+          ),
+        ],
+      ),
+      actions: [
+        if (widget.isProtected)
+          TextButton(
+            onPressed: () => Navigator.pop(
+              context,
+              const _ProtectionResult(enabled: false),
+            ),
+            child: const Text(
+              'Снять защиту',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        TextButton(
+          onPressed: _save,
+          child: const Text('Сохранить'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProtectedNoteUnlockDialog extends StatefulWidget {
+  const _ProtectedNoteUnlockDialog();
+
+  @override
+  State<_ProtectedNoteUnlockDialog> createState() =>
+      _ProtectedNoteUnlockDialogState();
+}
+
+class _ProtectedNoteUnlockDialogState extends State<_ProtectedNoteUnlockDialog> {
+  final _passwordCtrl = TextEditingController();
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Защищённая заметка'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Для редактирования этой заметки введите пароль.'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _passwordCtrl,
+            obscureText: _obscure,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Пароль',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscure ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              ),
+            ),
+            onSubmitted: (value) => Navigator.pop(context, value),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _passwordCtrl.text),
+          child: const Text('Открыть'),
+        ),
+      ],
     );
   }
 }

@@ -65,6 +65,21 @@ class AuthService {
     return _parseAuthResponse(response);
   }
 
+  Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/auth/reset-password'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'newPassword': newPassword}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _parseMessageResponse(response);
+  }
+
   ({String token, AuthUser user}) _parseAuthResponse(http.Response response) {
     // ignore: avoid_print
     print('[AUTH] status=${response.statusCode} body=${response.body}');
@@ -85,6 +100,27 @@ class AuthService {
     final token = body['token'] as String? ?? '';
     final user = AuthUser.fromJson(body['user'] as Map<String, dynamic>? ?? body);
     return (token: token, user: user);
+  }
+
+  void _parseMessageResponse(http.Response response) {
+    // ignore: avoid_print
+    print('[AUTH] status=${response.statusCode} body=${response.body}');
+
+    Map<String, dynamic> body = {};
+    if (response.body.isNotEmpty) {
+      try {
+        body = jsonDecode(response.body) as Map<String, dynamic>;
+      } on FormatException {
+        throw AuthException(
+          'Сервер вернул неожиданный ответ (${response.statusCode}):\n${response.body}',
+        );
+      }
+    }
+
+    if (response.statusCode >= 400) {
+      final msg = body['message'] ?? body['error'] ?? 'Ошибка сервера';
+      throw AuthException(msg.toString());
+    }
   }
 
   Future<void> saveToken(String token) async {

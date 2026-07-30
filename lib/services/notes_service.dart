@@ -24,9 +24,15 @@ class NotesService {
       'isVideo': note.isVideo,
       'imagePath': note.imagePath ?? '',
       'voicePath': note.voicePath ?? '',
+      'isProtected': note.hasProtection,
+      'protectionPassword': note.protectionPassword ?? '',
     };
+    final logBody = Map<String, dynamic>.from(requestBody);
+    if ((logBody['protectionPassword'] as String).isNotEmpty) {
+      logBody['protectionPassword'] = '***';
+    }
     // ignore: avoid_print
-    print('[NOTES] POST /api/notes body=$requestBody');
+    print('[NOTES] POST /api/notes body=$logBody');
 
     final response = await http
         .post(
@@ -51,6 +57,68 @@ class NotesService {
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return _noteFromJson(json);
   }
+
+  Future<void> verifyNotePassword({
+    required String id,
+    required String password,
+    required String token,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/notes/$id/verify-password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'password': password}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    // ignore: avoid_print
+    print(
+      '[NOTES] verify password status=${response.statusCode} body=${response.body}',
+    );
+
+    if (response.statusCode >= 400) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body['message'] ?? body['error'] ?? 'Неверный пароль';
+      throw Exception(msg.toString());
+    }
+  }
+
+  Future<void> updateNoteProtection({
+    required String id,
+    required bool isProtected,
+    required String? password,
+    required String token,
+  }) async {
+    final response = await http
+        .patch(
+          Uri.parse('$_baseUrl/api/notes/$id/protection'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'isProtected': isProtected,
+            'password': password ?? '',
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    // ignore: avoid_print
+    print('[NOTES] protection status=${response.statusCode} body=${response.body}');
+
+    if (response.statusCode >= 400) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body['message'] ?? body['error'] ?? 'Ошибка сервера';
+      if (msg.toString().toLowerCase().contains('method not allowed')) {
+        throw Exception('Backend не поддерживает обновление защиты');
+      }
+      throw Exception(msg.toString());
+    }
+  }
+
 
   /// Загружает аудио-файл голосовой заметки на сервер и возвращает
   /// относительный URL вида `/uploads/voice/<...>`.
@@ -129,6 +197,14 @@ class NotesService {
       isVoice: json['isVoice'] == true,
       isVideo: json['isVideo'] == true,
       color: Color(json['color'] as int? ?? 0xFFFFFFFF),
+      isProtected: _readBool(json['isProtected']),
     );
+  }
+
+  bool _readBool(Object? value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) return value.toLowerCase() == 'true' || value == '1';
+    return false;
   }
 }
