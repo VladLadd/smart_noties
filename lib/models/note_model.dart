@@ -5,6 +5,7 @@ class Note {
   final String title;
   final String body;
   final String? imagePath;
+  final List<String> photoPaths;
   final String? voicePath;
   final bool isVoice;
   final bool isVideo;
@@ -22,6 +23,7 @@ class Note {
     required this.title,
     required this.body,
     this.imagePath,
+    this.photoPaths = const [],
     this.voicePath,
     this.isVoice = false,
     this.isVideo = false,
@@ -36,6 +38,7 @@ class Note {
     String? title,
     String? body,
     String? imagePath,
+    List<String>? photoPaths,
     String? voicePath,
     bool? isVoice,
     bool? isVideo,
@@ -52,6 +55,7 @@ class Note {
       title: title ?? this.title,
       body: body ?? this.body,
       imagePath: clearImagePath ? null : (imagePath ?? this.imagePath),
+      photoPaths: photoPaths ?? this.photoPaths,
       voicePath: clearVoicePath ? null : (voicePath ?? this.voicePath),
       isVoice: isVoice ?? this.isVoice,
       isVideo: isVideo ?? this.isVideo,
@@ -69,6 +73,7 @@ class Note {
     'title': title,
     'body': body,
     'imagePath': imagePath,
+    'photoPaths': photoPaths,
     'voicePath': voicePath,
     'isVoice': isVoice,
     'isVideo': isVideo,
@@ -83,6 +88,7 @@ class Note {
     title: json['title'] as String,
     body: json['body'] as String,
     imagePath: json['imagePath'] as String?,
+    photoPaths: _readStringList(json['photoPaths']),
     voicePath: json['voicePath'] as String?,
     isVoice: json['isVoice'] as bool? ?? false,
     isVideo: json['isVideo'] as bool? ?? false,
@@ -97,5 +103,15 @@ class Note {
     if (value is num) return value != 0;
     if (value is String) return value.toLowerCase() == 'true' || value == '1';
     return false;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is List) {
+      return value
+          .map((item) => item?.toString() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    return const [];
   }
 }

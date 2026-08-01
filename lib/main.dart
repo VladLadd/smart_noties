@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/notes_provider.dart';
@@ -47,7 +49,28 @@ class _HomeRouter extends StatelessWidget {
       return const LoginScreen();
     }
 
-    final hasNotes = context.watch<NotesProvider>().notes.isNotEmpty;
+    final auth = context.watch<AuthProvider>();
+    final notesProvider = context.watch<NotesProvider>();
+    final token = auth.token;
+
+    if (notesProvider.shouldLoadServerNotes(token)) {
+      unawaited(
+        Future.microtask(
+          () => notesProvider.loadServerNotes(token: token),
+        ),
+      );
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (notesProvider.loadingServerNotes && notesProvider.notes.isEmpty) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final hasNotes = notesProvider.notes.isNotEmpty;
     return hasNotes ? const NotesGridScreen() : const StartScreen();
   }
 }

@@ -2,14 +2,26 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/note_model.dart';
+import '../services/note_client_crypto.dart';
 import '../services/notes_service.dart';
 
 class NotesProvider extends ChangeNotifier {
   final _service = NotesService();
   final List<Note> _notes = [];
+  bool _loadingServerNotes = false;
+  String? _loadedToken;
 
   List<Note> get notes => List.unmodifiable(_notes);
+  bool get loadingServerNotes => _loadingServerNotes;
+
+  bool shouldLoadServerNotes(String? token) {
+    return token != null &&
+        token.isNotEmpty &&
+        !_loadingServerNotes &&
+        _loadedToken != token;
+  }
 
   NotesProvider() {
     _loadPendingNotes();
@@ -20,6 +32,32 @@ class NotesProvider extends ChangeNotifier {
     if (pending.isEmpty) return;
     _notes.addAll(pending);
     notifyListeners();
+  }
+
+  Future<void> loadServerNotes({
+    required String? token,
+    bool force = false,
+  }) async {
+    if (token == null || token.isEmpty) return;
+    if (_loadingServerNotes) return;
+    if (!force && _loadedToken == token) return;
+
+    _loadingServerNotes = true;
+    _loadedToken = token;
+    notifyListeners();
+
+    try {
+      final serverNotes = await _service.fetchNotes(token: token);
+      _notes.removeWhere((note) => !note.isPending);
+      _notes.addAll(serverNotes);
+      notifyListeners();
+    } catch (e) {
+      // ignore: avoid_print
+      print('[NOTES] load server notes error: $e');
+    } finally {
+      _loadingServerNotes = false;
+      notifyListeners();
+    }
   }
 
   Future<void> addNote(
@@ -49,17 +87,68 @@ class NotesProvider extends ChangeNotifier {
   }
 
   /// Заливает локальный аудио-файл на сервер, возвращает относительный URL.
-  Future<String> uploadVoice(File file, String token) =>
-      _service.uploadVoice(file: file, token: token);
+  Future<String> uploadVoice(
+    File file,
+    String token, {
+    String? mediaPassword,
+  }) =>
+      _service.uploadVoice(
+        file: file,
+        token: token,
+        mediaPassword: mediaPassword,
+      );
+
+  /// Заливает локальное изображение на сервер, возвращает относительный URL.
+  Future<String> uploadImage(
+    File file,
+    String token, {
+    String? mediaPassword,
+  }) =>
+      _service.uploadImage(
+        file: file,
+        token: token,
+        mediaPassword: mediaPassword,
+      );
+
+  Future<String> uploadPickedImage(
+    XFile file,
+    String token, {
+    String? mediaPassword,
+  }) =>
+      _service.uploadPickedImage(
+        file: file,
+        token: token,
+        mediaPassword: mediaPassword,
+      );
 
   Future<void> _saveLocally(Note note) async {
-    final pending = note.copyWith(
+    final noteToSave = note.hasProtection && note.protectionPassword != null
+        ? await encryptNoteForClient(note, note.protectionPassword!)
+        : note;
+    final pending = noteToSave.copyWith(
       id: 'local_${DateTime.now().millisecondsSinceEpoch}',
       isPending: true,
     );
     _notes.insert(0, pending);
     notifyListeners();
-    await _service.savePendingNotes(_notes.toList());
+    await _savePendingNotes();
+  }
+
+  Future<void> _savePendingNotes() async {
+    final notesForStorage = <Note>[];
+    for (final note in _notes) {
+      if (note.isPending &&
+          note.hasProtection &&
+          note.protectionPassword != null &&
+          note.protectionPassword!.isNotEmpty) {
+        notesForStorage.add(
+          await encryptNoteForClient(note, note.protectionPassword!),
+        );
+      } else {
+        notesForStorage.add(note);
+      }
+    }
+    await _service.savePendingNotes(notesForStorage);
   }
 
   bool _isOfflineError(Object e) {
@@ -90,13 +179,29 @@ class NotesProvider extends ChangeNotifier {
       _notes[index] = created;
       notifyListeners();
     }
-    await _service.savePendingNotes(_notes.toList());
+    await _savePendingNotes();
   }
 
-  void updateNote(Note updated) {
+  Future<void> updateNote(
+    Note updated, {
+    required String? token,
+  }) async {
     final index = _notes.indexWhere((n) => n.id == updated.id);
     if (index != -1) {
       _notes[index] = updated;
+      notifyListeners();
+    }
+    await _savePendingNotes();
+
+    if (updated.isPending) return;
+    if (token == null || token.isEmpty) {
+      throw Exception('Необходима авторизация');
+    }
+
+    final saved = await _service.updateNote(note: updated, token: token);
+    final savedIndex = _notes.indexWhere((n) => n.id == updated.id);
+    if (savedIndex != -1) {
+      _notes[savedIndex] = saved;
       notifyListeners();
     }
   }
@@ -112,31 +217,27 @@ class NotesProvider extends ChangeNotifier {
       protectionPassword: isProtected ? password : null,
       clearProtectionPassword: !isProtected,
     );
-    updateNote(updated);
-    await _service.savePendingNotes(_notes.toList());
-
-    if (!note.isPending) {
-      if (token == null || token.isEmpty) {
-        throw Exception('Необходима авторизация');
-      }
-      await _service.updateNoteProtection(
-        id: note.id,
-        isProtected: isProtected,
-        password: password,
-        token: token,
-      );
-    }
+    await updateNote(updated, token: token);
+    await _savePendingNotes();
   }
 
-  Future<void> verifyNotePassword(
+  Future<Note> verifyNotePassword(
     Note note, {
     required String password,
     required String? token,
   }) async {
-    if (!note.hasProtection) return;
+    if (!note.hasProtection) return note;
 
     if (note.protectionPassword != null && note.protectionPassword!.isNotEmpty) {
-      if (note.protectionPassword == password) return;
+      if (note.protectionPassword == password) {
+        final unlocked = await decryptNoteFromClient(note, password);
+        final index = _notes.indexWhere((item) => item.id == note.id);
+        if (index != -1) {
+          _notes[index] = unlocked.copyWith(protectionPassword: password);
+          notifyListeners();
+        }
+        return unlocked.copyWith(protectionPassword: password);
+      }
       throw Exception('Неверный пароль');
     }
 
@@ -148,11 +249,17 @@ class NotesProvider extends ChangeNotifier {
       throw Exception('Необходима авторизация');
     }
 
-    await _service.verifyNotePassword(
+    final unlocked = await _service.verifyNotePassword(
       id: note.id,
       password: password,
       token: token,
     );
+    final index = _notes.indexWhere((item) => item.id == note.id);
+    if (index != -1) {
+      _notes[index] = unlocked;
+      notifyListeners();
+    }
+    return unlocked;
   }
 
   Future<void> deleteNote(String id, {String? token}) async {
@@ -168,6 +275,6 @@ class NotesProvider extends ChangeNotifier {
 
     _notes.removeAt(index);
     notifyListeners();
-    await _service.savePendingNotes(_notes.toList());
+    await _savePendingNotes();
   }
 }

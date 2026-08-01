@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'note_edit_screen.dart';
@@ -8,6 +9,7 @@ import 'profile_screen.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/note_model.dart';
+import '../services/api_config.dart';
 
 class NotesGridScreen extends StatefulWidget {
   const NotesGridScreen({super.key});
@@ -59,12 +61,13 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   Future<void> _openNote(Note note) async {
+    var noteToOpen = note;
     if (note.hasProtection) {
       final password = await _showProtectedNoteDialog();
       if (password == null) return;
 
       try {
-        await context.read<NotesProvider>().verifyNotePassword(
+        noteToOpen = await context.read<NotesProvider>().verifyNotePassword(
               note,
               password: password,
               token: context.read<AuthProvider>().token,
@@ -83,8 +86,8 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => NoteViewScreen(
-          note: note,
-          initiallyUnlocked: note.hasProtection,
+          note: noteToOpen,
+          initiallyUnlocked: noteToOpen.hasProtection,
         ),
       ),
     );
@@ -172,9 +175,22 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   Widget _buildNoteTile(Note note) {
     ImageProvider? imageProvider;
     if (!note.hasProtection && note.imagePath != null) {
-      imageProvider = note.imagePath!.startsWith('assets/')
-          ? AssetImage(note.imagePath!) as ImageProvider
-          : FileImage(File(note.imagePath!));
+      final path = note.imagePath!;
+      if (path.startsWith('assets/')) {
+        imageProvider = AssetImage(path);
+      } else if (isRemoteMedia(path)) {
+        final token = context.read<AuthProvider>().token;
+        imageProvider = NetworkImage(
+          resolveMediaUrl(path),
+          headers: token == null || token.isEmpty
+              ? null
+              : {'Authorization': 'Bearer $token'},
+        );
+      } else if (kIsWeb) {
+        imageProvider = NetworkImage(path);
+      } else {
+        imageProvider = FileImage(File(path));
+      }
     }
 
     return Container(

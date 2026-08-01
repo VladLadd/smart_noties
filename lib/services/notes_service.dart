@@ -2,32 +2,66 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/note_model.dart';
 import 'api_config.dart';
+import 'note_client_crypto.dart';
 
 final String _baseUrl = apiBaseUrl;
 const String _pendingNotesKey = 'pending_notes';
 
 class NotesService {
+  Future<List<Note>> fetchNotes({required String token}) async {
+    final response = await http
+        .get(
+          Uri.parse('$_baseUrl/api/notes'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode >= 400) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body['message'] ?? body['error'] ?? 'Ошибка сервера';
+      throw Exception(msg.toString());
+    }
+
+    final list = jsonDecode(response.body) as List<dynamic>;
+    final notes =
+        list.map((e) => _noteFromJson(e as Map<String, dynamic>)).toList();
+    // ignore: avoid_print
+    print(
+      '[NOTES] GET /api/notes '
+      'status=${response.statusCode} count=${notes.length}',
+    );
+    return notes;
+  }
+
   Future<Note> createNote({
     required Note note,
     required int userId,
     required String token,
   }) async {
+    final password = note.protectionPassword ?? '';
+    final requestNote = await encryptNoteForClient(note, password);
     final requestBody = {
-      'title': note.title,
-      'body': note.body,
+      'title': requestNote.title,
+      'body': requestNote.body,
       'userId': userId,
-      'color': note.color.value,
-      'isVoice': note.isVoice,
-      'isVideo': note.isVideo,
-      'imagePath': note.imagePath ?? '',
-      'voicePath': note.voicePath ?? '',
+      'color': requestNote.color.value,
+      'isVoice': requestNote.isVoice,
+      'isVideo': requestNote.isVideo,
+      'imagePath': requestNote.imagePath ?? '',
+      'photoPaths': requestNote.photoPaths,
+      'voicePath': requestNote.voicePath ?? '',
       'isProtected': note.hasProtection,
-      'protectionPassword': note.protectionPassword ?? '',
+      'protectionPassword': password,
     };
     final logBody = Map<String, dynamic>.from(requestBody);
+    if (note.hasProtection) {
+      logBody['title'] = '***';
+      logBody['body'] = '***';
+    }
     if ((logBody['protectionPassword'] as String).isNotEmpty) {
       logBody['protectionPassword'] = '***';
     }
@@ -46,7 +80,7 @@ class NotesService {
         .timeout(const Duration(seconds: 15));
 
     // ignore: avoid_print
-    print('[NOTES] status=${response.statusCode} body=${response.body}');
+    print('[NOTES] status=${response.statusCode}');
 
     if (response.statusCode >= 400) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -55,10 +89,65 @@ class NotesService {
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return _noteFromJson(json);
+    final created = _noteFromJson(json);
+    return decryptNoteFromClient(created, password);
   }
 
-  Future<void> verifyNotePassword({
+  Future<Note> updateNote({
+    required Note note,
+    required String token,
+  }) async {
+    final password = note.protectionPassword ?? '';
+    final requestNote = await encryptNoteForClient(note, password);
+    final requestBody = {
+      'title': requestNote.title,
+      'body': requestNote.body,
+      'color': requestNote.color.value,
+      'isVoice': requestNote.isVoice,
+      'isVideo': requestNote.isVideo,
+      'imagePath': requestNote.imagePath ?? '',
+      'photoPaths': requestNote.photoPaths,
+      'voicePath': requestNote.voicePath ?? '',
+      'isProtected': note.hasProtection,
+      'protectionPassword': password,
+    };
+    final logBody = Map<String, dynamic>.from(requestBody);
+    if (note.hasProtection) {
+      logBody['title'] = '***';
+      logBody['body'] = '***';
+    }
+    if ((logBody['protectionPassword'] as String).isNotEmpty) {
+      logBody['protectionPassword'] = '***';
+    }
+    // ignore: avoid_print
+    print('[NOTES] PATCH /api/notes/${note.id} body=$logBody');
+
+    final response = await http
+        .patch(
+          Uri.parse('$_baseUrl/api/notes/${note.id}'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(requestBody),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    // ignore: avoid_print
+    print('[NOTES] update status=${response.statusCode}');
+
+    if (response.statusCode >= 400) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body['message'] ?? body['error'] ?? 'Ошибка сервера';
+      throw Exception(msg.toString());
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final updated = _noteFromJson(json);
+    return decryptNoteFromClient(updated, password);
+  }
+
+  Future<Note> verifyNotePassword({
     required String id,
     required String password,
     required String token,
@@ -84,6 +173,10 @@ class NotesService {
       final msg = body['message'] ?? body['error'] ?? 'Неверный пароль';
       throw Exception(msg.toString());
     }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final unlocked = await decryptNoteFromClient(_noteFromJson(json), password);
+    return unlocked.copyWith(protectionPassword: password);
   }
 
   Future<void> updateNoteProtection({
@@ -107,7 +200,9 @@ class NotesService {
         .timeout(const Duration(seconds: 15));
 
     // ignore: avoid_print
-    print('[NOTES] protection status=${response.statusCode} body=${response.body}');
+    print(
+      '[NOTES] protection status=${response.statusCode} body=${response.body}',
+    );
 
     if (response.statusCode >= 400) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -119,17 +214,18 @@ class NotesService {
     }
   }
 
-
   /// Загружает аудио-файл голосовой заметки на сервер и возвращает
   /// относительный URL вида `/uploads/voice/<...>`.
   Future<String> uploadVoice({
     required File file,
     required String token,
+    String? mediaPassword,
   }) async {
     final request =
         http.MultipartRequest('POST', Uri.parse('$_baseUrl/api/upload/voice'))
           ..headers['Authorization'] = 'Bearer $token'
           ..files.add(await http.MultipartFile.fromPath('file', file.path));
+    _applyMediaProtection(request, mediaPassword);
 
     final streamed =
         await request.send().timeout(const Duration(seconds: 30));
@@ -147,6 +243,77 @@ class NotesService {
     final url = json['url'] as String?;
     if (url == null || url.isEmpty) {
       throw Exception('Сервер не вернул URL файла');
+    }
+    return url;
+  }
+
+  /// Загружает изображение на сервер и возвращает защищённый URL
+  /// вида `/api/image/<userId>/<file>`.
+  Future<String> uploadImage({
+    required File file,
+    required String token,
+    String? mediaPassword,
+  }) async {
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$_baseUrl/api/upload/image'))
+          ..headers['Authorization'] = 'Bearer $token'
+          ..files.add(await http.MultipartFile.fromPath('file', file.path));
+    _applyMediaProtection(request, mediaPassword);
+
+    final streamed =
+        await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+
+    // ignore: avoid_print
+    print('[IMAGE] upload status=${response.statusCode} body=${response.body}');
+
+    if (response.statusCode >= 400) {
+      throw Exception('Не удалось загрузить изображение '
+          '(${response.statusCode})');
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final url = json['url'] as String?;
+    if (url == null || url.isEmpty) {
+      throw Exception('Сервер не вернул URL изображения');
+    }
+    return url;
+  }
+
+  Future<String> uploadPickedImage({
+    required XFile file,
+    required String token,
+    String? mediaPassword,
+  }) async {
+    final bytes = await file.readAsBytes();
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$_baseUrl/api/upload/image'))
+          ..headers['Authorization'] = 'Bearer $token'
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'file',
+              bytes,
+              filename: _imageUploadFileName(file),
+            ),
+          );
+    _applyMediaProtection(request, mediaPassword);
+
+    final streamed =
+        await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+
+    // ignore: avoid_print
+    print('[IMAGE] upload status=${response.statusCode} body=${response.body}');
+
+    if (response.statusCode >= 400) {
+      throw Exception('Не удалось загрузить изображение '
+          '(${response.statusCode})');
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final url = json['url'] as String?;
+    if (url == null || url.isEmpty) {
+      throw Exception('Сервер не вернул URL изображения');
     }
     return url;
   }
@@ -191,6 +358,7 @@ class NotesService {
       imagePath: (json['imagePath'] as String?)?.isEmpty == true
           ? null
           : json['imagePath'] as String?,
+      photoPaths: _readStringList(json['photoPaths']),
       voicePath: (json['voicePath'] as String?)?.isEmpty == true
           ? null
           : json['voicePath'] as String?,
@@ -206,5 +374,30 @@ class NotesService {
     if (value is num) return value != 0;
     if (value is String) return value.toLowerCase() == 'true' || value == '1';
     return false;
+  }
+
+  List<String> _readStringList(Object? value) {
+    if (value is List) {
+      return value
+          .map((item) => item?.toString() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
+  String _imageUploadFileName(XFile file) {
+    final name = file.name.trim();
+    if (name.isEmpty || !name.contains('.')) return 'image.jpg';
+    return name;
+  }
+
+  void _applyMediaProtection(
+    http.MultipartRequest request,
+    String? mediaPassword,
+  ) {
+    if (mediaPassword == null || mediaPassword.isEmpty) return;
+    request.fields['isProtected'] = 'true';
+    request.fields['password'] = mediaPassword;
   }
 }

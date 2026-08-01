@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:image_picker/image_picker.dart';
@@ -33,8 +34,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   late final TextEditingController _bodyController;
   late Color _selectedColor;
 
-  File? _imageFile;
-  String? _assetImagePath; // отдельно храним оригинальный asset-путь
+  String? _coverImagePath;
+  XFile? _coverImageFile;
+  final List<_EditableImage> _photos = [];
   bool _isRecording = false;
   String? _recordedPath;
   int _recordSeconds = 0;
@@ -50,6 +52,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   bool _saving = false;
   bool _syncing = false;
   bool _isLocked = false;
+  Note? _currentNote;
 
   bool get _isEditing => widget.initialNote != null;
 
@@ -57,6 +60,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   void initState() {
     super.initState();
     final note = widget.initialNote;
+    _currentNote = note;
 
     _titleController = TextEditingController(text: note?.title ?? '');
     _bodyController = TextEditingController(text: note?.body ?? '');
@@ -65,13 +69,10 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     _protectionPassword = note?.protectionPassword;
     _isLocked = _isProtected && !widget.initiallyUnlocked;
 
-    if (note?.imagePath != null) {
-      if (note!.imagePath!.startsWith('assets/')) {
-        _assetImagePath = note.imagePath;
-      } else {
-        _imageFile = File(note.imagePath!);
-      }
-    }
+    _coverImagePath = note?.imagePath;
+    _photos.addAll(
+      (note?.photoPaths ?? const []).map((path) => _EditableImage(path: path)),
+    );
     if (note?.isVoice == true) _recordedPath = note?.voicePath;
 
     _animController = AnimationController(
@@ -102,7 +103,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     super.dispose();
   }
 
-  bool get _hasImage => _imageFile != null || _assetImagePath != null;
+  bool get _hasImage => _coverImagePath != null && _coverImagePath!.isNotEmpty;
 
   Future<void> _requestUnlock() async {
     final note = widget.initialNote;
@@ -121,13 +122,29 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     }
 
     try {
-      await context.read<NotesProvider>().verifyNotePassword(
+      final unlocked = await context.read<NotesProvider>().verifyNotePassword(
             note,
             password: password,
             token: context.read<AuthProvider>().token,
           );
       if (!mounted) return;
-      setState(() => _isLocked = false);
+      setState(() {
+        _currentNote = unlocked;
+        _titleController.text = unlocked.title;
+        _bodyController.text = unlocked.body;
+        _selectedColor = unlocked.color;
+        _coverImagePath = unlocked.imagePath;
+        _coverImageFile = null;
+        _photos
+          ..clear()
+          ..addAll(
+            unlocked.photoPaths.map((path) => _EditableImage(path: path)),
+          );
+        _recordedPath = unlocked.voicePath;
+        _isProtected = unlocked.hasProtection;
+        _protectionPassword = password;
+        _isLocked = false;
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,20 +178,100 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         ),
       );
       if (confirmed != true) return;
-      setState(() {
-        _imageFile = null;
-        _assetImagePath = null;
-      });
+      setState(() => _coverImagePath = null);
     }
     setState(() => _selectedColor = color);
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _pickCoverImage() async {
+    final source = await _showImageSourceSheet(
+      title: 'Обложка заметки',
+      allowGalleryMultiple: false,
+    );
+    if (source == null) return;
     final picked =
         await ImagePicker().pickImage(source: source, imageQuality: 85);
     if (picked != null) {
-      setState(() => _imageFile = File(picked.path));
+      setState(() {
+        _coverImagePath = picked.path;
+        _coverImageFile = picked;
+      });
     }
+  }
+
+  Future<void> _addPhotos() async {
+    final source = await _showImageSourceSheet(
+      title: 'Фотографии заметки',
+      allowGalleryMultiple: true,
+    );
+    if (source == null) return;
+
+    if (source == ImageSource.camera) {
+      final picked =
+          await ImagePicker().pickImage(source: source, imageQuality: 85);
+      if (picked != null) {
+        setState(
+          () => _photos.add(_EditableImage(path: picked.path, file: picked)),
+        );
+      }
+      return;
+    }
+
+    final picked = await ImagePicker().pickMultiImage(imageQuality: 85);
+    if (picked.isNotEmpty) {
+      setState(
+        () => _photos.addAll(
+          picked.map((file) => _EditableImage(path: file.path, file: file)),
+        ),
+      );
+    }
+  }
+
+  Future<ImageSource?> _showImageSourceSheet({
+    required String title,
+    required bool allowGalleryMultiple,
+  }) {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Сделать фото'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: Text(
+                allowGalleryMultiple
+                    ? 'Выбрать одно или несколько фото'
+                    : 'Выбрать из галереи',
+              ),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removePhotoAt(int index) {
+    setState(() => _photos.removeAt(index));
   }
 
   Future<void> _toggleRecording() async {
@@ -250,7 +347,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     setState(() => _syncing = true);
     try {
       await context.read<NotesProvider>().syncNote(
-        widget.initialNote!,
+        _currentNote!,
         userId: userId,
         token: token,
       );
@@ -271,9 +368,28 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
     final provider = context.read<NotesProvider>();
     final auth = context.read<AuthProvider>();
-    final imagePath = _imageFile?.path ?? _assetImagePath;
+    String? imagePath = _coverImagePath;
+    List<_EditableImage> photos = List.of(_photos);
 
     try {
+      imagePath = await _uploadImagePath(
+        imagePath,
+        _coverImageFile,
+        auth,
+        provider,
+      );
+      final uploadedPhotoPaths = <String>[];
+      for (final photo in photos) {
+        final uploaded = await _uploadImagePath(
+          photo.path,
+          photo.file,
+          auth,
+          provider,
+        );
+        if (uploaded != null) uploadedPhotoPaths.add(uploaded);
+      }
+      final photoPaths = uploadedPhotoPaths;
+
       // Свежую локальную запись заливаем на сервер → в заметке будет URL.
       String? voicePath = _recordedPath;
       if (voicePath != null &&
@@ -283,7 +399,11 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         final file = File(voicePath);
         if (await file.exists()) {
           try {
-            voicePath = await provider.uploadVoice(file, auth.token!);
+            voicePath = await provider.uploadVoice(
+              file,
+              auth.token!,
+              mediaPassword: _isProtected ? _protectionPassword : null,
+            );
           } catch (_) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -299,10 +419,11 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       }
 
       if (_isEditing) {
-        final updated = widget.initialNote!.copyWith(
+        final updated = _currentNote!.copyWith(
           title: _titleController.text,
           body: _bodyController.text,
           imagePath: imagePath,
+          photoPaths: photoPaths,
           clearImagePath: imagePath == null,
           voicePath: voicePath,
           clearVoicePath: voicePath == null,
@@ -312,7 +433,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           protectionPassword: _protectionPassword,
           clearProtectionPassword: !_isProtected,
         );
-        provider.updateNote(updated);
+        await provider.updateNote(updated, token: auth.token);
       } else {
         await provider.addNote(
           Note(
@@ -320,6 +441,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             title: _titleController.text,
             body: _bodyController.text,
             imagePath: imagePath,
+            photoPaths: photoPaths,
             voicePath: voicePath,
             isVoice: voicePath != null,
             color: _selectedColor,
@@ -341,6 +463,51 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     }
   }
 
+  Future<String?> _uploadImagePath(
+    String? path,
+    XFile? pickedFile,
+    AuthProvider auth,
+    NotesProvider provider,
+  ) async {
+    if (path == null || path.isEmpty || path.startsWith('assets/')) {
+      return path;
+    }
+    if (isRemoteMedia(path) || auth.token == null || auth.token!.isEmpty) {
+      return path;
+    }
+
+    try {
+      if (pickedFile != null) {
+        return await provider.uploadPickedImage(
+          pickedFile,
+          auth.token!,
+          mediaPassword: _isProtected ? _protectionPassword : null,
+        );
+      }
+      if (kIsWeb) return path;
+
+      final file = File(path);
+      if (!await file.exists()) return path;
+      return await provider.uploadImage(
+        file,
+        auth.token!,
+        mediaPassword: _isProtected ? _protectionPassword : null,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Изображение не загружено, сохранён локальный путь',
+            ),
+            backgroundColor: Colors.orange[800],
+          ),
+        );
+      }
+      return path;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLocked) return _buildLockedScreen();
@@ -353,6 +520,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             const Divider(),
             _buildImagePreview(),
             _buildTextFields(),
+            _buildPhotoGallery(),
             _buildVoiceSection(),
             const Spacer(),
             _buildBottomActions(),
@@ -419,7 +587,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           ),
           Row(
             children: [
-              if (_isEditing && widget.initialNote!.isPending) ...[
+              if (_isEditing && _currentNote!.isPending) ...[
                 _syncing
                     ? const SizedBox(
                         width: 24,
@@ -465,7 +633,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     if (_isEditing) {
       try {
         await context.read<NotesProvider>().updateNoteProtection(
-              widget.initialNote!,
+              _currentNote!,
               isProtected: result.enabled,
               password: result.password,
               token: context.read<AuthProvider>().token,
@@ -489,28 +657,124 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Widget _buildImagePreview() {
-    ImageProvider? imageProvider;
-    if (_imageFile != null) {
-      imageProvider = FileImage(_imageFile!);
-    } else if (_assetImagePath != null) {
-      imageProvider = AssetImage(_assetImagePath!);
-    }
+    final imageProvider = _coverImagePath == null
+        ? null
+        : _imageProviderForPath(_coverImagePath!);
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      height: 200,
-      decoration: BoxDecoration(
-        color: imageProvider == null ? _selectedColor : Colors.grey[200],
-        border: Border.all(color: Colors.black12),
-        borderRadius: BorderRadius.circular(8),
-        image: imageProvider != null
-            ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
-            : null,
+    return InkWell(
+      onTap: _pickCoverImage,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        height: 200,
+        decoration: BoxDecoration(
+          color: imageProvider == null ? _selectedColor : Colors.grey[200],
+          border: Border.all(color: Colors.black12),
+          borderRadius: BorderRadius.circular(8),
+          image: imageProvider != null
+              ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
+              : null,
+        ),
+        child: Stack(
+          children: [
+            if (imageProvider == null)
+              const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_photo_alternate_outlined, size: 32),
+                    SizedBox(height: 8),
+                    Text('Нажмите, чтобы выбрать обложку'),
+                  ],
+                ),
+              ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.72),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.edit, color: Colors.white, size: 18),
+              ),
+            ),
+          ],
+        ),
       ),
-      child: imageProvider == null
-          ? const Center(child: Text('Нет изображения'))
-          : null,
     );
+  }
+
+  Widget _buildPhotoGallery() {
+    if (_photos.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 108,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: _photos.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final path = _photos[index].path;
+          return Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image(
+                  image: _imageProviderForPath(path),
+                  width: 104,
+                  height: 104,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: GestureDetector(
+                  onTap: () => _removePhotoAt(index),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.black87,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  ImageProvider _imageProviderForPath(String path) {
+    if (path.startsWith('assets/')) return AssetImage(path);
+    if (isRemoteMedia(path)) {
+      final token = context.read<AuthProvider>().token;
+      return NetworkImage(
+        resolveMediaUrl(path),
+        headers: _mediaHeaders(token),
+      );
+    }
+    if (kIsWeb) return NetworkImage(path);
+    return FileImage(File(path));
+  }
+
+  Map<String, String>? _mediaHeaders(String? token) {
+    final headers = <String, String>{};
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    if (_isProtected &&
+        _protectionPassword != null &&
+        _protectionPassword!.isNotEmpty) {
+      headers['X-Media-Password'] = _protectionPassword!;
+    }
+    return headers.isEmpty ? null : headers;
   }
 
   Widget _buildTextFields() {
@@ -551,6 +815,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         key: ValueKey(_recordedPath),
         path: _recordedPath!,
         token: context.read<AuthProvider>().token,
+        mediaPassword: _isProtected ? _protectionPassword : null,
         initialDuration: _recordedDuration > 0
             ? Duration(seconds: _recordedDuration)
             : null,
@@ -636,11 +901,11 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 background: _isRecording ? Colors.red : Colors.black,
               ),
               const SizedBox(width: 16),
-              _animatedIcon(Icons.camera_alt, delay: 100,
-                  onTap: () => _pickImage(ImageSource.camera)),
-              const SizedBox(width: 16),
-              _animatedIcon(Icons.videocam, delay: 200,
-                  onTap: () => _pickImage(ImageSource.gallery)),
+              _animatedIcon(
+                Icons.camera_alt,
+                delay: 100,
+                onTap: _addPhotos,
+              ),
             ],
           ),
         ],
@@ -677,6 +942,16 @@ class _ProtectionResult {
   const _ProtectionResult({
     required this.enabled,
     this.password,
+  });
+}
+
+class _EditableImage {
+  final String path;
+  final XFile? file;
+
+  const _EditableImage({
+    required this.path,
+    this.file,
   });
 }
 
