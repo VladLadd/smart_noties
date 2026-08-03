@@ -19,6 +19,8 @@ class NotesGridScreen extends StatefulWidget {
 }
 
 class _NotesGridScreenState extends State<NotesGridScreen> {
+  bool _showGrid = true;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -27,7 +29,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
           children: [
             Column(
               children: [
-                Expanded(child: _buildGrid()),
+                Expanded(child: _buildNotes()),
                 _buildBottomBar(),
               ],
             ),
@@ -38,8 +40,25 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     );
   }
 
-  Widget _buildGrid() {
+  Widget _buildNotes() {
     final notes = context.watch<NotesProvider>().notes;
+
+    if (!_showGrid) {
+      return ListView.separated(
+        itemCount: notes.length,
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final note = notes[index];
+          return InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _openNote(note),
+            onLongPress: () => _showNoteActions(note),
+            child: _buildNoteRow(note),
+          );
+        },
+      );
+    }
 
     return GridView.builder(
       itemCount: notes.length,
@@ -173,25 +192,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   Widget _buildNoteTile(Note note) {
-    ImageProvider? imageProvider;
-    if (!note.hasProtection && note.imagePath != null) {
-      final path = note.imagePath!;
-      if (path.startsWith('assets/')) {
-        imageProvider = AssetImage(path);
-      } else if (isRemoteMedia(path)) {
-        final token = context.read<AuthProvider>().token;
-        imageProvider = NetworkImage(
-          resolveMediaUrl(path),
-          headers: token == null || token.isEmpty
-              ? null
-              : {'Authorization': 'Bearer $token'},
-        );
-      } else if (kIsWeb) {
-        imageProvider = NetworkImage(path);
-      } else {
-        imageProvider = FileImage(File(path));
-      }
-    }
+    final imageProvider = _noteImageProvider(note);
 
     return Container(
       decoration: BoxDecoration(
@@ -279,6 +280,120 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     );
   }
 
+  Widget _buildNoteRow(Note note) {
+    final imageProvider = _noteImageProvider(note);
+    final title = note.hasProtection
+        ? 'Защищённая заметка'
+        : (note.title.isNotEmpty ? note.title : 'Без заголовка');
+    final body = note.hasProtection ? 'Введите пароль для просмотра' : note.body;
+
+    return Container(
+      height: 92,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: note.color.withOpacity(0.85),
+      ),
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 72,
+              height: 72,
+              color: Colors.black.withOpacity(0.08),
+              child: imageProvider != null
+                  ? Image(image: imageProvider, fit: BoxFit.cover)
+                  : Icon(
+                      note.hasProtection
+                          ? Icons.lock_outline
+                          : Icons.sticky_note_2_outlined,
+                      size: 28,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Georgia',
+                        ),
+                      ),
+                    ),
+                    if (note.hasProtection) ...[
+                      const SizedBox(width: 8),
+                      const Tooltip(
+                        message: 'Защищённая заметка',
+                        child: Icon(Icons.lock, size: 18),
+                      ),
+                    ],
+                    if (note.isPending) ...[
+                      const SizedBox(width: 8),
+                      const Tooltip(
+                        message: 'Не отправлено на сервер',
+                        child: Icon(
+                          Icons.cloud_off,
+                          size: 18,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  body.isNotEmpty ? body : 'Нет текста',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black.withOpacity(0.62),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!note.hasProtection && note.isVoice) ...[
+            const SizedBox(width: 8),
+            const Icon(Icons.mic, size: 20),
+          ],
+        ],
+      ),
+    );
+  }
+
+  ImageProvider? _noteImageProvider(Note note) {
+    if (note.hasProtection || note.imagePath == null) return null;
+
+    final path = note.imagePath!;
+    if (path.startsWith('assets/')) {
+      return AssetImage(path);
+    }
+    if (isRemoteMedia(path)) {
+      final token = context.read<AuthProvider>().token;
+      return NetworkImage(
+        resolveMediaUrl(path),
+        headers: token == null || token.isEmpty
+            ? null
+            : {'Authorization': 'Bearer $token'},
+      );
+    }
+    if (kIsWeb) return NetworkImage(path);
+    return FileImage(File(path));
+  }
+
   Widget _buildBottomBar() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, top: 4),
@@ -293,8 +408,11 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
               MaterialPageRoute(builder: (_) => const ProfileScreen()),
             ),
           ),
-          const Icon(Icons.circle, size: 24),
-          const Icon(Icons.grid_view, size: 24),
+          IconButton(
+            tooltip: _showGrid ? 'Показать списком' : 'Показать плитками',
+            icon: Icon(_showGrid ? Icons.view_list : Icons.grid_view),
+            onPressed: () => setState(() => _showGrid = !_showGrid),
+          ),
         ],
       ),
     );

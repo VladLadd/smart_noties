@@ -611,8 +611,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 tooltip: _isProtected ? 'Изменить защиту' : 'Защитить заметку',
                 onPressed: _showProtectionDialog,
               ),
-              const SizedBox(width: 16),
-              const Icon(Icons.grid_view),
+              const SizedBox(width: 16)
             ],
           ),
         ],
