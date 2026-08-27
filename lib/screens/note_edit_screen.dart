@@ -7,12 +7,16 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/note_model.dart';
+import '../models/note_video_model.dart';
+import '../models/video_preview_model.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_config.dart';
 import '../widgets/color_picker_menu.dart';
 import '../widgets/voice_message_player.dart';
+import 'video_player_screen.dart';
 
 class NoteEditScreen extends StatefulWidget {
   final Note? initialNote;
@@ -518,11 +522,20 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           children: [
             _buildTopBar(),
             const Divider(),
-            _buildImagePreview(),
-            _buildTextFields(),
-            _buildPhotoGallery(),
-            _buildVoiceSection(),
-            const Spacer(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  children: [
+                    _buildImagePreview(),
+                    _buildTextFields(),
+                    _buildPhotoGallery(),
+                    _buildVoiceSection(),
+                    _buildVideoSection(),
+                  ],
+                ),
+              ),
+            ),
             _buildBottomActions(),
           ],
         ),
@@ -708,23 +721,27 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   Widget _buildPhotoGallery() {
     if (_photos.isEmpty) return const SizedBox.shrink();
 
-    return SizedBox(
-      height: 108,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: _photos.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 1,
+        ),
         itemBuilder: (context, index) {
           final path = _photos[index].path;
           return Stack(
+            fit: StackFit.expand,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image(
                   image: _imageProviderForPath(path),
-                  width: 104,
-                  height: 104,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -824,6 +841,41 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     return const SizedBox.shrink();
   }
 
+  Widget _buildVideoSection() {
+    final videos = _currentNote?.videos ?? const <NoteVideo>[];
+    if (videos.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Видео',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: videos.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.45,
+            ),
+            itemBuilder: (context, index) => _VideoAttachmentTile(
+              video: videos[index],
+              onTap: () => _openVideo(videos[index]),
+              onDelete: () => _deleteVideo(videos[index]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRecordingPanel() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -905,6 +957,12 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 delay: 100,
                 onTap: _addPhotos,
               ),
+              const SizedBox(width: 16),
+              _animatedIcon(
+                Icons.video_library_outlined,
+                delay: 180,
+                onTap: _showAddVideoDialog,
+              ),
             ],
           ),
         ],
@@ -929,6 +987,464 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           padding: const EdgeInsets.all(12),
           child: Icon(icon, color: Colors.white),
         ),
+      ),
+    );
+  }
+
+  Future<void> _showAddVideoDialog() async {
+    final note = _currentNote;
+    if (!_isEditing || note == null || note.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Сначала сохраните заметку, затем добавьте видео'),
+        ),
+      );
+      return;
+    }
+    if (note.isPending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Сначала синхронизируйте заметку')),
+      );
+      return;
+    }
+    if (_isProtected || note.hasProtection) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Видео для защищённых заметок пока не поддерживается'),
+        ),
+      );
+      return;
+    }
+
+    final auth = context.read<AuthProvider>();
+    final video = await showDialog<NoteVideo>(
+      context: context,
+      builder: (_) => _AddVideoDialog(
+        note: note,
+        token: auth.token,
+      ),
+    );
+
+    if (video == null || !mounted) return;
+    setState(() {
+      final current = _currentNote;
+      if (current == null) return;
+      _currentNote = current.copyWith(
+        videos: [...current.videos, video],
+        isVideo: true,
+      );
+    });
+  }
+
+  Future<void> _openVideo(NoteVideo video) async {
+    final storagePath = video.storagePath?.trim() ?? '';
+    if (storagePath.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => NoteVideoPlayerScreen(
+            video: video,
+            token: context.read<AuthProvider>().token,
+            mediaPassword: _isProtected ? _protectionPassword : null,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final sourceUrl = video.sourceUrl.trim();
+    if (sourceUrl.isEmpty) {
+      _showVideoLink(video);
+      return;
+    }
+
+    final uri = Uri.tryParse(sourceUrl);
+    if (uri == null || !uri.hasScheme) {
+      _showVideoLink(video);
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) _showVideoLink(video);
+    } catch (_) {
+      if (mounted) _showVideoLink(video);
+    }
+  }
+
+  Future<void> _deleteVideo(NoteVideo video) async {
+    final note = _currentNote;
+    if (note == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить видео?'),
+        content: Text(
+          video.title.isNotEmpty ? video.title : 'Видео будет удалено.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await context.read<NotesProvider>().deleteVideo(
+            note: note,
+            videoId: video.id,
+            token: context.read<AuthProvider>().token,
+          );
+      if (!mounted) return;
+      setState(() {
+        final current = _currentNote;
+        if (current == null) return;
+        final videos =
+            current.videos.where((item) => item.id != video.id).toList();
+        _currentNote = current.copyWith(
+          videos: videos,
+          isVideo: videos.isNotEmpty,
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
+      );
+    }
+  }
+
+  void _showVideoLink(NoteVideo video) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(video.title.isNotEmpty ? video.title : 'Видео'),
+        content: SelectableText(
+          video.sourceUrl.isNotEmpty
+              ? video.sourceUrl
+              : 'Ссылка на видео недоступна',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Закрыть'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddVideoDialog extends StatefulWidget {
+  final Note note;
+  final String? token;
+
+  const _AddVideoDialog({
+    required this.note,
+    required this.token,
+  });
+
+  @override
+  State<_AddVideoDialog> createState() => _AddVideoDialogState();
+}
+
+class _AddVideoDialogState extends State<_AddVideoDialog> {
+  final _urlController = TextEditingController();
+  VideoPreview? _preview;
+  String? _error;
+  bool _loadingPreview = false;
+  bool _adding = false;
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPreview() async {
+    final url = _urlController.text.trim();
+    if (url.isEmpty) {
+      setState(() => _error = 'Вставьте ссылку');
+      return;
+    }
+    setState(() {
+      _loadingPreview = true;
+      _error = null;
+      _preview = null;
+    });
+
+    try {
+      final preview = await context.read<NotesProvider>().previewVideoUrl(
+            url: url,
+            token: widget.token,
+          );
+      if (!mounted) return;
+      setState(() => _preview = preview);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingPreview = false);
+    }
+  }
+
+  Future<void> _addVideo() async {
+    final url = _urlController.text.trim();
+    if (url.isEmpty) {
+      setState(() => _error = 'Вставьте ссылку');
+      return;
+    }
+    setState(() {
+      _adding = true;
+      _error = null;
+    });
+
+    try {
+      final video = await context.read<NotesProvider>().addVideoFromUrl(
+            note: widget.note,
+            url: url,
+            token: widget.token,
+          );
+      if (!mounted) return;
+      Navigator.pop(context, video);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = _preview;
+
+    return AlertDialog(
+      title: const Text('Добавить видео'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _urlController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Ссылка на видео',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _loadPreview(),
+            ),
+            const SizedBox(height: 12),
+            if (_loadingPreview)
+              const LinearProgressIndicator()
+            else if (preview != null)
+              _VideoPreviewPanel(preview: preview),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: TextStyle(color: Colors.red[700]),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _adding ? null : () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        TextButton.icon(
+          onPressed: _loadingPreview || _adding ? null : _loadPreview,
+          icon: const Icon(Icons.search),
+          label: const Text('Проверить'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _loadingPreview || _adding ? null : _addVideo,
+          icon: _adding
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add),
+          label: const Text('Добавить'),
+        ),
+      ],
+    );
+  }
+}
+
+class _VideoPreviewPanel extends StatelessWidget {
+  final VideoPreview preview;
+
+  const _VideoPreviewPanel({required this.preview});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 82,
+            height: 58,
+            child: _VideoThumbnail(thumbnailUrl: preview.thumbnailUrl),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  preview.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${preview.provider} · ${preview.mode}',
+                  style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                ),
+                if (preview.reason.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    preview.reason,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoAttachmentTile extends StatelessWidget {
+  final NoteVideo video;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _VideoAttachmentTile({
+    required this.video,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _VideoThumbnail(thumbnailUrl: video.thumbnailPath),
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 8,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    video.title.isNotEmpty ? video.title : 'Видео',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${video.provider} · ${video.status}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Center(
+              child: Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: onDelete,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.black87,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoThumbnail extends StatelessWidget {
+  final String? thumbnailUrl;
+
+  const _VideoThumbnail({this.thumbnailUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = thumbnailUrl ?? '';
+    if (url.startsWith('http')) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const _VideoPlaceholder(),
+      );
+    }
+    return const _VideoPlaceholder();
+  }
+}
+
+class _VideoPlaceholder extends StatelessWidget {
+  const _VideoPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black87,
+      child: const Center(
+        child: Icon(Icons.video_library_outlined, color: Colors.white70),
       ),
     );
   }

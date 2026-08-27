@@ -60,23 +60,69 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       );
     }
 
-    return GridView.builder(
-      itemCount: notes.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      padding: const EdgeInsets.all(8),
-      itemBuilder: (context, index) {
-        final note = notes[index];
-        return InkWell(
-          onTap: () => _openNote(note),
-          onLongPress: () => _showNoteActions(note),
-          child: _buildNoteTile(note),
+    return _buildMasonryGrid(notes);
+  }
+
+  Widget _buildMasonryGrid(List<Note> notes) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 8.0;
+        final columnWidth = (constraints.maxWidth - spacing * 3) / 2;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(spacing, spacing, spacing, 88),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: columnWidth,
+                child: _buildMasonryColumn(notes, 0, columnWidth),
+              ),
+              const SizedBox(width: spacing),
+              SizedBox(
+                width: columnWidth,
+                child: _buildMasonryColumn(notes, 1, columnWidth),
+              ),
+            ],
+          ),
         );
       },
     );
+  }
+
+  Widget _buildMasonryColumn(
+    List<Note> notes,
+    int startIndex,
+    double columnWidth,
+  ) {
+    final children = <Widget>[];
+    for (var index = startIndex; index < notes.length; index += 2) {
+      final note = notes[index];
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: SizedBox(
+            height: _masonryTileHeight(index, columnWidth),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _openNote(note),
+              onLongPress: () => _showNoteActions(note),
+              child: _buildNoteTile(note),
+            ),
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+  }
+
+  double _masonryTileHeight(int index, double width) {
+    const ratios = [1.56, 1.08, 1.35, 1.72, 1.2, 1.46];
+    final ratio = ratios[index % ratios.length];
+    return (width * ratio).clamp(132.0, 280.0).toDouble();
   }
 
   Future<void> _openNote(Note note) async {
@@ -262,18 +308,11 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                 child: Icon(Icons.cloud_off, size: 18, color: Colors.orange),
               ),
             ),
-          if (!note.hasProtection && note.isVoice)
+          if (!note.hasProtection && (note.isVoice || note.isVideo))
             Positioned(
               bottom: 0,
               right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.mic, size: 14, color: Colors.white),
-              ),
+              child: _MediaBadges(note: note, compact: true),
             ),
         ],
       ),
@@ -365,9 +404,9 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
               ],
             ),
           ),
-          if (!note.hasProtection && note.isVoice) ...[
+          if (!note.hasProtection && (note.isVoice || note.isVideo)) ...[
             const SizedBox(width: 8),
-            const Icon(Icons.mic, size: 20),
+            _MediaBadges(note: note),
           ],
         ],
       ),
@@ -429,6 +468,56 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
         ),
         child: const Icon(Icons.add, size: 32),
       ),
+    );
+  }
+}
+
+class _MediaBadges extends StatelessWidget {
+  final Note note;
+  final bool compact;
+
+  const _MediaBadges({
+    required this.note,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icons = <IconData>[
+      if (note.isVoice) Icons.mic,
+      if (note.isVideo) Icons.video_library_outlined,
+    ];
+    if (icons.isEmpty) return const SizedBox.shrink();
+
+    final iconWidgets = icons
+        .map(
+          (icon) => Icon(
+            icon,
+            size: compact ? 14 : 20,
+            color: compact ? Colors.white : Colors.black87,
+          ),
+        )
+        .toList();
+
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < iconWidgets.length; i++) ...[
+          if (i > 0) const SizedBox(width: 4),
+          iconWidgets[i],
+        ],
+      ],
+    );
+
+    if (!compact) return content;
+
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: const BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+      child: content,
     );
   }
 }

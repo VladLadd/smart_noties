@@ -13,6 +13,7 @@ class AuthProvider extends ChangeNotifier {
   String? token;
   int? userId;
   String? email;
+  String role = 'user';
 
   AuthProvider() {
     _tryAutoLogin();
@@ -29,6 +30,7 @@ class AuthProvider extends ChangeNotifier {
     token = savedToken;
     userId = await _service.loadUserId() ?? _extractUserIdFromJwt(savedToken);
     email = _extractEmailFromJwt(savedToken);
+    role = _extractRoleFromJwt(savedToken) ?? 'user';
     // ignore: avoid_print
     print('[AUTH] auto-login: userId=$userId token=${savedToken.substring(0, 20)}...');
 
@@ -44,8 +46,14 @@ class AuthProvider extends ChangeNotifier {
     required String name,
     required String email,
     required String password,
+    String phone = '',
   }) async {
-    await _service.register(name: name, email: email, password: password);
+    await _service.register(
+      name: name,
+      email: email,
+      password: password,
+      phone: phone,
+    );
     // Бэкенд /api/users не возвращает токен — сразу логинимся теми же
     // учётными данными, чтобы после регистрации юзер был авторизован.
     await login(email: email, password: password);
@@ -53,6 +61,18 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> login({required String email, required String password}) async {
     final result = await _service.login(email: email, password: password);
+    await _persist(result);
+  }
+
+  Future<void> requestPhoneCode({required String phone}) async {
+    await _service.requestPhoneCode(phone: phone);
+  }
+
+  Future<void> verifyPhoneCode({
+    required String phone,
+    required String code,
+  }) async {
+    final result = await _service.verifyPhoneCode(phone: phone, code: code);
     await _persist(result);
   }
 
@@ -70,6 +90,7 @@ class AuthProvider extends ChangeNotifier {
     userId = null;
     user = null;
     email = null;
+    role = 'user';
     status = AuthStatus.unauthenticated;
     notifyListeners();
   }
@@ -81,6 +102,9 @@ class AuthProvider extends ChangeNotifier {
     email = result.user.email.isNotEmpty
         ? result.user.email
         : _extractEmailFromJwt(result.token);
+    role = result.user.role.isNotEmpty
+        ? result.user.role
+        : (_extractRoleFromJwt(result.token) ?? 'user');
     // ignore: avoid_print
     print('[AUTH] _persist: raw id="${result.user.id}" parsed userId=$userId');
     await _service.saveToken(result.token);
@@ -122,6 +146,22 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       // ignore: avoid_print
       print('[AUTH] JWT email parse error: $e');
+      return null;
+    }
+  }
+
+  String? _extractRoleFromJwt(String jwt) {
+    try {
+      final parts = jwt.split('.');
+      if (parts.length != 3) return null;
+      final payload = base64Url.normalize(parts[1]);
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final json = jsonDecode(decoded) as Map<String, dynamic>;
+      final raw = json['role'];
+      return raw is String && raw.isNotEmpty ? raw : null;
+    } catch (e) {
+      // ignore: avoid_print
+      print('[AUTH] JWT role parse error: $e');
       return null;
     }
   }

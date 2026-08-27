@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/note_model.dart';
+import '../models/note_video_model.dart';
+import '../models/video_preview_model.dart';
 import '../services/note_client_crypto.dart';
 import '../services/notes_service.dart';
 
@@ -120,6 +122,77 @@ class NotesProvider extends ChangeNotifier {
         token: token,
         mediaPassword: mediaPassword,
       );
+
+  Future<VideoPreview> previewVideoUrl({
+    required String url,
+    required String? token,
+  }) {
+    if (token == null || token.isEmpty) {
+      throw Exception('Необходима авторизация');
+    }
+    return _service.previewVideoUrl(url: url, token: token);
+  }
+
+  Future<NoteVideo> addVideoFromUrl({
+    required Note note,
+    required String url,
+    required String? token,
+  }) async {
+    if (token == null || token.isEmpty) {
+      throw Exception('Необходима авторизация');
+    }
+    if (note.isPending) {
+      throw Exception('Сначала синхронизируйте заметку');
+    }
+    if (note.hasProtection) {
+      throw Exception('Видео для защищённых заметок пока не поддерживается');
+    }
+
+    final video = await _service.importVideoUrl(
+      url: url,
+      token: token,
+      noteId: note.id,
+      isProtected: false,
+    );
+
+    final index = _notes.indexWhere((item) => item.id == note.id);
+    if (index != -1) {
+      final current = _notes[index];
+      _notes[index] = current.copyWith(
+        videos: [...current.videos, video],
+        isVideo: true,
+      );
+      notifyListeners();
+    }
+    return video;
+  }
+
+  Future<void> deleteVideo({
+    required Note note,
+    required String videoId,
+    required String? token,
+  }) async {
+    if (token == null || token.isEmpty) {
+      throw Exception('Необходима авторизация');
+    }
+    if (note.isPending) {
+      throw Exception('Сначала синхронизируйте заметку');
+    }
+
+    await _service.deleteVideo(id: videoId, token: token);
+
+    final index = _notes.indexWhere((item) => item.id == note.id);
+    if (index != -1) {
+      final current = _notes[index];
+      final videos =
+          current.videos.where((video) => video.id != videoId).toList();
+      _notes[index] = current.copyWith(
+        videos: videos,
+        isVideo: videos.isNotEmpty,
+      );
+      notifyListeners();
+    }
+  }
 
   Future<void> _saveLocally(Note note) async {
     final noteToSave = note.hasProtection && note.protectionPassword != null

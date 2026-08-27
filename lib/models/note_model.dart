@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'note_video_model.dart';
+
 class Note {
   final String id;
   final String title;
@@ -8,11 +10,14 @@ class Note {
   final List<String> photoPaths;
   final String? voicePath;
   final bool isVoice;
-  final bool isVideo;
+  final bool _isVideo;
+  final List<NoteVideo> videos;
   final Color color;
   final bool isPending;
   final bool isProtected;
   final String? protectionPassword;
+
+  bool get isVideo => _isVideo || videos.isNotEmpty;
 
   bool get hasProtection =>
       isProtected ||
@@ -26,12 +31,13 @@ class Note {
     this.photoPaths = const [],
     this.voicePath,
     this.isVoice = false,
-    this.isVideo = false,
+    bool isVideo = false,
+    this.videos = const [],
     this.color = Colors.white,
     this.isPending = false,
     this.isProtected = false,
     this.protectionPassword,
-  });
+  }) : _isVideo = isVideo;
 
   Note copyWith({
     String? id,
@@ -42,6 +48,7 @@ class Note {
     String? voicePath,
     bool? isVoice,
     bool? isVideo,
+    List<NoteVideo>? videos,
     Color? color,
     bool? isPending,
     bool? isProtected,
@@ -50,6 +57,7 @@ class Note {
     bool clearVoicePath = false,
     bool clearProtectionPassword = false,
   }) {
+    final nextVideos = videos ?? this.videos;
     return Note(
       id: id ?? this.id,
       title: title ?? this.title,
@@ -58,7 +66,8 @@ class Note {
       photoPaths: photoPaths ?? this.photoPaths,
       voicePath: clearVoicePath ? null : (voicePath ?? this.voicePath),
       isVoice: isVoice ?? this.isVoice,
-      isVideo: isVideo ?? this.isVideo,
+      isVideo: isVideo ?? (videos != null ? nextVideos.isNotEmpty : _isVideo),
+      videos: nextVideos,
       color: color ?? this.color,
       isPending: isPending ?? this.isPending,
       isProtected: isProtected ?? this.isProtected,
@@ -77,26 +86,31 @@ class Note {
     'voicePath': voicePath,
     'isVoice': isVoice,
     'isVideo': isVideo,
+    'videos': videos.map((video) => video.toJson()).toList(),
     'color': color.value,
     'isPending': isPending,
     'isProtected': isProtected,
     'protectionPassword': protectionPassword,
   };
 
-  factory Note.fromJson(Map<String, dynamic> json) => Note(
-    id: json['id'] as String,
-    title: json['title'] as String,
-    body: json['body'] as String,
-    imagePath: json['imagePath'] as String?,
-    photoPaths: _readStringList(json['photoPaths']),
-    voicePath: json['voicePath'] as String?,
-    isVoice: json['isVoice'] as bool? ?? false,
-    isVideo: json['isVideo'] as bool? ?? false,
-    color: Color(json['color'] as int? ?? 0xFFFFFFFF),
-    isPending: json['isPending'] as bool? ?? false,
-    isProtected: _readBool(json['isProtected']),
-    protectionPassword: json['protectionPassword'] as String?,
-  );
+  factory Note.fromJson(Map<String, dynamic> json) {
+    final videos = NoteVideo.listFromJson(json['videos']);
+    return Note(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      body: json['body'] as String,
+      imagePath: _readNullableString(json['imagePath']),
+      photoPaths: _readStringList(json['photoPaths']),
+      voicePath: _readNullableString(json['voicePath']),
+      isVoice: json['isVoice'] as bool? ?? false,
+      isVideo: (json['isVideo'] as bool? ?? false) || videos.isNotEmpty,
+      videos: videos,
+      color: Color(json['color'] as int? ?? 0xFFFFFFFF),
+      isPending: json['isPending'] as bool? ?? false,
+      isProtected: _readBool(json['isProtected']),
+      protectionPassword: json['protectionPassword'] as String?,
+    );
+  }
 
   static bool _readBool(Object? value) {
     if (value is bool) return value;
@@ -113,5 +127,10 @@ class Note {
           .toList();
     }
     return const [];
+  }
+
+  static String? _readNullableString(Object? value) {
+    final text = value?.toString() ?? '';
+    return text.isEmpty ? null : text;
   }
 }

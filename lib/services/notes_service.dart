@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/note_model.dart';
+import '../models/note_video_model.dart';
+import '../models/video_preview_model.dart';
 import 'api_config.dart';
 import 'note_client_crypto.dart';
 
@@ -214,6 +215,76 @@ class NotesService {
     }
   }
 
+  Future<VideoPreview> previewVideoUrl({
+    required String url,
+    required String token,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/video/preview'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'url': url}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode >= 400) {
+      throw Exception(_errorMessage(response, 'Не удалось получить preview'));
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return VideoPreview.fromJson(json);
+  }
+
+  Future<NoteVideo> importVideoUrl({
+    required String url,
+    required String token,
+    String? noteId,
+    bool isProtected = false,
+    String? password,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/video/import'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'url': url,
+            'noteId': noteId ?? '',
+            'isProtected': isProtected,
+            'password': password ?? '',
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode >= 400) {
+      throw Exception(_errorMessage(response, 'Не удалось добавить видео'));
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return NoteVideo.fromJson(json);
+  }
+
+  Future<void> deleteVideo({
+    required String id,
+    required String token,
+  }) async {
+    final response = await http
+        .delete(
+          Uri.parse('$_baseUrl/api/video/$id'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode >= 400) {
+      throw Exception(_errorMessage(response, 'Не удалось удалить видео'));
+    }
+  }
+
   /// Загружает аудио-файл голосовой заметки на сервер и возвращает
   /// относительный URL вида `/uploads/voice/<...>`.
   Future<String> uploadVoice({
@@ -351,22 +422,23 @@ class NotesService {
   }
 
   Note _noteFromJson(Map<String, dynamic> json) {
-    return Note(
-      id: json['id']?.toString() ?? '',
-      title: json['title'] ?? '',
-      body: json['body'] ?? '',
-      imagePath: (json['imagePath'] as String?)?.isEmpty == true
+    return Note.fromJson({
+      ...json,
+      'id': json['id']?.toString() ?? '',
+      'title': json['title'] ?? '',
+      'body': json['body'] ?? '',
+      'imagePath': (json['imagePath'] as String?)?.isEmpty == true
           ? null
-          : json['imagePath'] as String?,
-      photoPaths: _readStringList(json['photoPaths']),
-      voicePath: (json['voicePath'] as String?)?.isEmpty == true
+          : json['imagePath'],
+      'photoPaths': _readStringList(json['photoPaths']),
+      'voicePath': (json['voicePath'] as String?)?.isEmpty == true
           ? null
-          : json['voicePath'] as String?,
-      isVoice: json['isVoice'] == true,
-      isVideo: json['isVideo'] == true,
-      color: Color(json['color'] as int? ?? 0xFFFFFFFF),
-      isProtected: _readBool(json['isProtected']),
-    );
+          : json['voicePath'],
+      'isVoice': json['isVoice'] == true,
+      'isVideo': json['isVideo'] == true,
+      'color': json['color'] as int? ?? 0xFFFFFFFF,
+      'isProtected': _readBool(json['isProtected']),
+    });
   }
 
   bool _readBool(Object? value) {
@@ -399,5 +471,14 @@ class NotesService {
     if (mediaPassword == null || mediaPassword.isEmpty) return;
     request.fields['isProtected'] = 'true';
     request.fields['password'] = mediaPassword;
+  }
+
+  String _errorMessage(http.Response response, String fallback) {
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return (body['message'] ?? body['error'] ?? fallback).toString();
+    } catch (_) {
+      return '$fallback (${response.statusCode})';
+    }
   }
 }

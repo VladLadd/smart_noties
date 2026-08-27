@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
+import 'sms_code_screen.dart';
+
+enum _LoginMode { email, phone }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,13 +17,16 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  _LoginMode _mode = _LoginMode.email;
   bool _loading = false;
   bool _obscure = true;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
+    _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -29,10 +35,20 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await context.read<AuthProvider>().login(
-            email: _emailCtrl.text.trim(),
-            password: _passwordCtrl.text,
-          );
+      if (_mode == _LoginMode.email) {
+        await context.read<AuthProvider>().login(
+              email: _emailCtrl.text.trim(),
+              password: _passwordCtrl.text,
+            );
+      } else {
+        final phone = _phoneCtrl.text.trim();
+        await context.read<AuthProvider>().requestPhoneCode(phone: phone);
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => SMSCodeScreen(phone: phone)),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,44 +86,62 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 48),
-                _AuthField(
-                  controller: _emailCtrl,
-                  label: 'Email',
-                  keyboardType: TextInputType.emailAddress,
-                  validator: _validateEmail,
-                ),
-                const SizedBox(height: 16),
-                _AuthField(
-                  controller: _passwordCtrl,
-                  label: 'Пароль',
-                  obscure: _obscure,
-                  validator: _validatePassword,
-                  suffix: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                _buildModeSwitch(),
+                const SizedBox(height: 24),
+                if (_mode == _LoginMode.email) ...[
+                  _AuthField(
+                    controller: _emailCtrl,
+                    label: 'Email',
+                    keyboardType: TextInputType.emailAddress,
+                    validator: _validateEmail,
                   ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ForgotPasswordScreen(
-                          initialEmail: _emailCtrl.text.trim(),
+                  const SizedBox(height: 16),
+                  _AuthField(
+                    controller: _passwordCtrl,
+                    label: 'Пароль',
+                    obscure: _obscure,
+                    validator: _validatePassword,
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscure ? Icons.visibility_off : Icons.visibility,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ForgotPasswordScreen(
+                            initialEmail: _emailCtrl.text.trim(),
+                          ),
+                        ),
+                      ),
+                      child: const Text(
+                        'Забыли пароль?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ),
-                    child: const Text(
-                      'Забыли пароль?',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
                   ),
-                ),
+                ] else ...[
+                  _AuthField(
+                    controller: _phoneCtrl,
+                    label: 'Номер телефона',
+                    keyboardType: TextInputType.phone,
+                    validator: _validatePhone,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Мы отправим SMS-код для входа. В dev-режиме код выводится в лог backend.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                ],
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
@@ -123,7 +157,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Войти', style: TextStyle(fontSize: 16)),
+                        : Text(
+                            _mode == _LoginMode.email ? 'Войти' : 'Получить код',
+                            style: const TextStyle(fontSize: 16),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -154,6 +191,34 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildModeSwitch() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          _ModeButton(
+            label: 'Email',
+            selected: _mode == _LoginMode.email,
+            onTap: _loading
+                ? null
+                : () => setState(() => _mode = _LoginMode.email),
+          ),
+          _ModeButton(
+            label: 'Телефон',
+            selected: _mode == _LoginMode.phone,
+            onTap: _loading
+                ? null
+                : () => setState(() => _mode = _LoginMode.phone),
+          ),
+        ],
+      ),
+    );
+  }
+
   String? _validateEmail(String? v) {
     if (v == null || v.trim().isEmpty) return 'Введите email';
     if (!v.contains('@')) return 'Некорректный email';
@@ -163,6 +228,61 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _validatePassword(String? v) {
     if (v == null || v.isEmpty) return 'Введите пароль';
     return null;
+  }
+
+  String? _validatePhone(String? v) {
+    final digits = (v ?? '').replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return 'Введите номер телефона';
+    if (digits.length < 10 || digits.length > 15) {
+      return 'Некорректный номер телефона';
+    }
+    return null;
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _ModeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.black : Colors.grey[700],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

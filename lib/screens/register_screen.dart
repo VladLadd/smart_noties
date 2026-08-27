@@ -13,6 +13,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   bool _loading = false;
@@ -23,6 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
+    _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
@@ -35,6 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await context.read<AuthProvider>().register(
             name: _nameCtrl.text.trim(),
             email: _emailCtrl.text.trim(),
+            phone: _phoneCtrl.text.trim(),
             password: _passwordCtrl.text,
           );
       if (!mounted) return;
@@ -94,6 +97,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (!v.contains('@')) return 'Некорректный email';
                     return null;
                   },
+                ),
+                const SizedBox(height: 16),
+                _buildField(
+                  controller: _phoneCtrl,
+                  label: 'Телефон',
+                  keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 16),
                 _buildField(

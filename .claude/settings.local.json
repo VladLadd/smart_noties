@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lsof -iTCP:8070 -sTCP:LISTEN)",
+      "Bash(curl -s -m 3 http://localhost:8070/health)",
+      "Bash(flutter analyze *)",
+      "Bash(go build *)",
+      "Bash(pkill -f '___go_bui')",
+      "Bash(pkill -f 'go run .')",
+      "Bash(pkill -f 'exe/backend')",
+      "Bash(nohup go run .)",
+      "Bash(echo \"запущен PID $!\")",
+      "Bash(echo \"PID $!\")",
+      "Bash(flutter pub *)",
+      "Bash(go get *)",
+      "Bash(echo \"EXIT=$?\")"
+    ]
+  }
+}

@@ -11,8 +11,16 @@ class AuthUser {
   final String id;
   final String name;
   final String email;
+  final String phone;
+  final String role;
 
-  const AuthUser({required this.id, required this.name, required this.email});
+  const AuthUser({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.phone = '',
+    this.role = 'user',
+  });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
     // ignore: avoid_print
@@ -22,6 +30,8 @@ class AuthUser {
       id: rawId?.toString() ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
+      phone: json['phone'] ?? '',
+      role: json['role']?.toString() ?? 'user',
     );
   }
 }
@@ -38,12 +48,45 @@ class AuthService {
     required String name,
     required String email,
     required String password,
+    String phone = '',
   }) async {
     final response = await http
         .post(
           Uri.parse('$_baseUrl/api/users'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'name': name, 'email': email, 'password': password}),
+          body: jsonEncode({
+            'name': name,
+            'email': email,
+            'phone': phone,
+            'password': password,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    return _parseAuthResponse(response);
+  }
+
+  Future<void> requestPhoneCode({required String phone}) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/auth/phone/request-code'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _parseMessageResponse(response);
+  }
+
+  Future<({String token, AuthUser user})> verifyPhoneCode({
+    required String phone,
+    required String code,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/auth/phone/verify-code'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone, 'code': code}),
         )
         .timeout(const Duration(seconds: 15));
 
