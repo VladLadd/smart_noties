@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'models/admin_user_model.dart';
 import 'models/nfc_key_model.dart';
+import 'models/nfc_token_request_model.dart';
 import 'services/auth_service.dart';
 import 'services/nfc_admin_service.dart';
 import 'theme/app_theme.dart';
@@ -205,19 +206,29 @@ class _AdminShellState extends State<_AdminShell> {
 
   @override
   Widget build(BuildContext context) {
-    final sections = [
+    final sections = <_ShellSection>[
       _ShellSection(
         icon: Icons.credit_card,
         label: 'Мои карты',
         child: _MyKeysPanel(token: widget.token),
       ),
-      if (_isAdmin)
+    ];
+    if (_isAdmin) {
+      sections.add(
+        _ShellSection(
+          icon: Icons.approval_outlined,
+          label: 'Запросы NFC',
+          child: _TokenRequestsPanel(token: widget.token),
+        ),
+      );
+      sections.add(
         _ShellSection(
           icon: Icons.group_outlined,
           label: 'Пользователи',
           child: _AdminUsersPanel(token: widget.token),
         ),
-    ];
+      );
+    }
     final selected = _section.clamp(0, sections.length - 1).toInt();
 
     return Scaffold(
@@ -700,6 +711,151 @@ class _AdminUsersPanelState extends State<_AdminUsersPanel> {
   }
 }
 
+class _TokenRequestsPanel extends StatefulWidget {
+  final String token;
+
+  const _TokenRequestsPanel({required this.token});
+
+  @override
+  State<_TokenRequestsPanel> createState() => _TokenRequestsPanelState();
+}
+
+class _TokenRequestsPanelState extends State<_TokenRequestsPanel> {
+  final _service = NfcAdminService();
+  List<NfcTokenRequest> _requests = const [];
+  String _status = 'pending';
+  String? _actingId;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final requests = await _service.fetchAdminTokenRequests(
+        token: widget.token,
+        status: _status,
+      );
+      if (!mounted) return;
+      setState(() => _requests = requests);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _approve(NfcTokenRequest request) async {
+    setState(() {
+      _actingId = request.id;
+      _error = null;
+    });
+    try {
+      await _service.approveTokenRequest(
+        token: widget.token,
+        requestId: request.id,
+      );
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('NFC-токен выдан пользователю')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _actingId = null);
+    }
+  }
+
+  Future<void> _reject(NfcTokenRequest request) async {
+    setState(() {
+      _actingId = request.id;
+      _error = null;
+    });
+    try {
+      await _service.rejectTokenRequest(
+        token: widget.token,
+        requestId: request.id,
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _actingId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _PanelFrame(
+      title: 'Запросы NFC',
+      subtitle: 'Одобрение пользовательских запросов на выдачу NFC-токена.',
+      actions: [
+        IconButton(
+          tooltip: 'Обновить',
+          onPressed: _loading ? null : _load,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: 260,
+              child: DropdownButtonFormField<String>(
+                value: _status,
+                decoration: const InputDecoration(
+                  labelText: 'Статус',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'pending', child: Text('Ожидают')),
+                  DropdownMenuItem(value: 'approved', child: Text('Одобрены')),
+                  DropdownMenuItem(value: 'consumed', child: Text('Записаны')),
+                  DropdownMenuItem(value: 'rejected', child: Text('Отклонены')),
+                  DropdownMenuItem(value: '', child: Text('Все')),
+                ],
+                onChanged: _loading
+                    ? null
+                    : (value) {
+                        setState(() => _status = value ?? 'pending');
+                        _load();
+                      },
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_error != null) _ErrorBanner(message: _error!),
+          if (_loading)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else
+            Expanded(
+              child: _TokenRequestsTable(
+                requests: _requests,
+                actingId: _actingId,
+                onApprove: _approve,
+                onReject: _reject,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PanelFrame extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -1025,6 +1181,174 @@ class _NfcKeysTable extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _TokenRequestsTable extends StatelessWidget {
+  final List<NfcTokenRequest> requests;
+  final String? actingId;
+  final ValueChanged<NfcTokenRequest> onApprove;
+  final ValueChanged<NfcTokenRequest> onReject;
+
+  const _TokenRequestsTable({
+    required this.requests,
+    required this.actingId,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (requests.isEmpty) return const _EmptyState(text: 'Заявок нет');
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SingleChildScrollView(
+        child: DataTable(
+          headingRowColor: MaterialStateProperty.all(const Color(0xFFF4F5F7)),
+          columns: const [
+            DataColumn(label: Text('Пользователь')),
+            DataColumn(label: Text('Название')),
+            DataColumn(label: Text('Статус')),
+            DataColumn(label: Text('Создана')),
+            DataColumn(label: Text('Одобрена')),
+            DataColumn(label: Text('')),
+          ],
+          rows: requests
+              .map(
+                (request) => DataRow(
+                  cells: [
+                    DataCell(
+                      SizedBox(
+                        width: 260,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              request.userEmail.isNotEmpty
+                                  ? request.userEmail
+                                  : 'ID ${request.userId}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              _requestUserSubtitle(request),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(request.title)),
+                    DataCell(_TokenRequestStatusBadge(status: request.status)),
+                    DataCell(Text(_fmtDate(request.createdAt))),
+                    DataCell(Text(_fmtDate(request.approvedAt))),
+                    DataCell(
+                      _TokenRequestActions(
+                        request: request,
+                        busy: actingId == request.id,
+                        onApprove: onApprove,
+                        onReject: onReject,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  String _requestUserSubtitle(NfcTokenRequest request) {
+    final parts = [
+      if (request.userName.isNotEmpty) request.userName,
+      if (request.userPhone.isNotEmpty) request.userPhone,
+    ];
+    return parts.isEmpty ? 'Пользователь' : parts.join(' · ');
+  }
+}
+
+class _TokenRequestActions extends StatelessWidget {
+  final NfcTokenRequest request;
+  final bool busy;
+  final ValueChanged<NfcTokenRequest> onApprove;
+  final ValueChanged<NfcTokenRequest> onReject;
+
+  const _TokenRequestActions({
+    required this.request,
+    required this.busy,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!request.isPending) {
+      return const SizedBox(width: 96, child: Text('—'));
+    }
+    if (busy) {
+      return const SizedBox(
+        width: 96,
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: 96,
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Одобрить',
+            onPressed: () => onApprove(request),
+            icon: const Icon(Icons.check_circle, color: Colors.green),
+          ),
+          IconButton(
+            tooltip: 'Отклонить',
+            onPressed: () => onReject(request),
+            icon: const Icon(Icons.cancel, color: Colors.red),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TokenRequestStatusBadge extends StatelessWidget {
+  final String status;
+
+  const _TokenRequestStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (status) {
+      'approved' => 'Одобрена',
+      'rejected' => 'Отклонена',
+      'consumed' => 'Записана',
+      _ => 'Ожидает',
+    };
+    final color = switch (status) {
+      'approved' => Colors.green[700],
+      'rejected' => Colors.red[700],
+      'consumed' => Colors.blueGrey[700],
+      _ => Colors.orange[800],
+    };
+    return _SmallBadge(text: text, color: color);
   }
 }
 

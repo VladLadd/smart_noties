@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/admin_user_model.dart';
 import '../models/nfc_key_model.dart';
+import '../models/nfc_token_request_model.dart';
 import 'api_config.dart';
 
 final String _baseUrl = apiBaseUrl;
@@ -53,6 +54,50 @@ class NfcAdminService {
     final response = await http
         .delete(
           Uri.parse('$_baseUrl/api/nfc/keys/$keyId'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _parseEmptyResponse(response);
+  }
+
+  Future<List<NfcTokenRequest>> fetchMyTokenRequests({
+    required String token,
+  }) async {
+    final response = await http
+        .get(
+          Uri.parse('$_baseUrl/api/nfc/token-requests'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    final json = _parseResponse(response);
+    return _readList(json).map(NfcTokenRequest.fromJson).toList();
+  }
+
+  Future<NfcTokenRequest> createMyTokenRequest({
+    required String token,
+    required String name,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/nfc/token-requests'),
+          headers: _headers(token),
+          body: jsonEncode({'name': name}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    final json = _parseResponse(response);
+    return NfcTokenRequest.fromJson(json as Map<String, dynamic>);
+  }
+
+  Future<void> consumeMyTokenRequest({
+    required String token,
+    required String requestId,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/nfc/token-requests/$requestId/consume'),
           headers: _headers(token),
         )
         .timeout(const Duration(seconds: 15));
@@ -115,6 +160,50 @@ class NfcAdminService {
     final response = await http
         .delete(
           Uri.parse('$_baseUrl/api/admin/users/$userId/nfc/keys/$keyId'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _parseEmptyResponse(response);
+  }
+
+  Future<List<NfcTokenRequest>> fetchAdminTokenRequests({
+    required String token,
+    String status = 'pending',
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/admin/nfc/token-requests').replace(
+      queryParameters: status.trim().isEmpty ? null : {'status': status},
+    );
+    final response = await http
+        .get(uri, headers: _headers(token))
+        .timeout(const Duration(seconds: 15));
+
+    final json = _parseResponse(response);
+    return _readList(json).map(NfcTokenRequest.fromJson).toList();
+  }
+
+  Future<NfcTokenRequest> approveTokenRequest({
+    required String token,
+    required String requestId,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/admin/nfc/token-requests/$requestId/approve'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    final json = _parseResponse(response);
+    return NfcTokenRequest.fromJson(json as Map<String, dynamic>);
+  }
+
+  Future<void> rejectTokenRequest({
+    required String token,
+    required String requestId,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/admin/nfc/token-requests/$requestId/reject'),
           headers: _headers(token),
         )
         .timeout(const Duration(seconds: 15));

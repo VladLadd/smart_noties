@@ -55,6 +55,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   bool _saving = false;
   bool _syncing = false;
+  bool _deleting = false;
   bool _isLocked = false;
   Note? _currentNote;
 
@@ -608,10 +609,27 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : IconButton(
-                        icon: const Icon(Icons.cloud_upload_outlined, color: Colors.orange),
+                        icon: const Icon(
+                          Icons.cloud_upload_outlined,
+                          color: Colors.orange,
+                        ),
                         tooltip: 'Отправить на сервер',
                         onPressed: _syncNote,
                       ),
+                const SizedBox(width: 8),
+              ],
+              if (_isEditing) ...[
+                IconButton(
+                  icon: _deleting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.delete_outline, color: Colors.red),
+                  tooltip: 'Удалить заметку',
+                  onPressed: _deleting ? null : _confirmDeleteNote,
+                ),
                 const SizedBox(width: 8),
               ],
               ColorPickerMenu(
@@ -630,6 +648,48 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteNote() async {
+    final note = _currentNote;
+    if (note == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить заметку?'),
+        content: Text(
+          note.title.isNotEmpty ? '«${note.title}»' : 'Заметка будет удалена.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      await context.read<NotesProvider>().deleteNote(
+            note.id,
+            token: context.read<AuthProvider>().token,
+          );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+      );
+    }
   }
 
   Future<void> _showProtectionDialog() async {

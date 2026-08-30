@@ -1,6 +1,133 @@
 # Текущее состояние проекта smart_noties
 
-Дата фиксации этапа: 2026-08-01.
+Дата фиксации этапа: 2026-08-23.
+
+Дополнение 2026-08-24:
+
+- Начата фича видео в заметках по ссылке, этапы 1-2.
+- В `tasks/plan.md` зафиксирован MVP-boundary:
+  - direct video URL сохраняем как файл на backend;
+  - YouTube/Instagram/TikTok/Vimeo на MVP сохраняем как `link_only`;
+  - universal downloader и скачивание YouTube/Instagram-контента не делаем.
+- На фронте добавлен контракт `NoteVideo` и поле `videos` в `Note`.
+- `isVideo` оставлен для совместимости и считается true, если у заметки есть
+  элементы в `videos`.
+- Backend находится вне текущего writable root, поэтому фактические backend-файлы
+  из этой сессии не изменены. Подготовлен применимый patch:
+  `tasks/backend_note_media_stage_2.patch`.
+- Patch проверен командой:
+
+```bash
+cd /Users/vlad/projects/bar/backend
+git apply --check /Users/vlad/StudioProjects/smart_noties/tasks/backend_note_media_stage_2.patch
+```
+
+Результат: проходит.
+
+Дополнение по этапу 3:
+
+- Подготовлен backend patch `tasks/backend_video_stage_3_link_only.patch`.
+- Он добавляет:
+  - `POST /api/video/preview`;
+  - `POST /api/video/import`;
+  - detector provider'ов `direct`, `youtube`, `instagram`, `tiktok`, `vimeo`,
+    `unknown`;
+  - link-only import в таблицу `note_media`;
+  - проверку владельца `noteId`;
+  - базовый запрет unsafe host'ов (`localhost`, private IP, loopback,
+    link-local);
+  - явный `501` для direct video import, пока не реализованы downloader/worker;
+  - явный `501` для protected video import, пока metadata/path не шифруются.
+- Patch проверен на временной копии backend:
+
+```bash
+git apply /Users/vlad/StudioProjects/smart_noties/tasks/backend_video_stage_3_link_only.patch
+gofmt -w main.go note_media.go video_import.go
+go test ./...
+```
+
+Результат: проходит.
+- На фронте добавлен клиентский контракт:
+  - `lib/models/video_preview_model.dart`;
+  - `NotesService.previewVideoUrl`;
+  - `NotesService.importVideoUrl`;
+  - `NotesProvider.previewVideoUrl`;
+  - `NotesProvider.addVideoFromUrl`.
+- Добавлен первый UI-срез для видео:
+  - кнопка видео в нижней панели `NoteEditScreen`;
+  - диалог добавления ссылки;
+  - preview перед добавлением;
+  - добавление link-only видео к уже сохранённой обычной заметке;
+  - отображение плиток видео в редакторе;
+  - отображение плиток видео в режиме просмотра;
+  - тап по плитке открывает link-only видео во внешнем браузере через
+    `url_launcher`;
+  - если открыть ссылку не удалось, показывается fallback-диалог с source URL.
+- В `pubspec.yaml` добавлена зависимость `url_launcher: ^6.3.0`.
+- `flutter pub get` выполнен пользователем, `pubspec.lock` обновлён.
+- `flutter analyze` из текущей Codex-среды всё ещё падает по причине локального
+  SDK: `cpuinfo_macos.cc: 42: error: unreachable code`.
+- Ограничения текущего UI-среза:
+  - видео нельзя добавить к новой несохранённой заметке;
+  - видео нельзя добавить к pending-заметке до синхронизации;
+  - protected video пока отключены;
+  - direct video URL backend preview определяет, но import вернёт `501`, пока
+    downloader/worker не реализованы.
+- Backend patch `tasks/backend_video_delete_stage.patch` применён:
+  - добавляет `DELETE /api/video/<mediaId>`;
+  - удаляет запись из `note_media` только для владельца;
+  - закладывает hooks для удаления будущих video/thumbnail файлов;
+  - после применения `go test ./...` проходит.
+- На фронте добавлено удаление видео:
+  - `NotesService.deleteVideo`;
+  - `NotesProvider.deleteVideo`;
+  - кнопка удаления на video-плитке в редакторе;
+  - после удаления локальный `Note.videos` обновляется без перезагрузки списка.
+- На экране списка заметок добавлены media badges:
+  - иконка микрофона для голосовых заметок;
+  - иконка видео для заметок с `videos`;
+  - отображаются и в плитках, и в построчном списке;
+  - protected-заметки по-прежнему не раскрывают медиа до разблокировки.
+- Подготовлен backend patch `tasks/backend_direct_video_import_stage.patch`:
+  - direct video URL больше не возвращает `501`, а скачивается синхронно;
+  - лимит direct video: 100 MB;
+  - redirects ограничены 5 переходами;
+  - перед скачиванием проверяются host/IP, включая DNS-resolve, чтобы не ходить
+    в private/loopback/link-local адреса;
+  - сохраняет файл в `uploads/video/<userId>/`;
+  - `storagePath` получает вид `/api/video/<userId>/<file>`;
+  - `GET /api/video/<userId>/<file>` отдаёт файл только владельцу по Bearer JWT;
+  - для обычных видео используется `http.ServeContent`, поэтому есть Range
+    support для будущего video player;
+  - `DELETE /api/video/<mediaId>` теперь умеет удалить сохранённый video file;
+  - protected direct video import всё ещё отключён.
+- Patch проверен:
+
+```bash
+cd /Users/vlad/projects/bar/backend
+git apply --check /Users/vlad/StudioProjects/smart_noties/tasks/backend_direct_video_import_stage.patch
+```
+
+- Patch проверен на временной копии backend через:
+
+```bash
+gofmt -w main.go video_import.go
+go test ./...
+```
+
+Результат: проходит.
+- Backend patch `tasks/backend_video_stage_3_link_only.patch` применён в
+  `/Users/vlad/projects/bar/backend`.
+- Проверка после применения:
+
+```bash
+cd /Users/vlad/projects/bar/backend
+go test ./...
+```
+
+Результат: проходит.
+- Live-проверка через `curl http://localhost:8070/health` пока не выполнена:
+  backend не запущен на `:8070`.
 
 Проект состоит из двух репозиториев:
 
@@ -14,6 +141,9 @@
 
 ### Авторизация и восстановление пароля
 
+- На экране логина добавлен переключатель способа входа:
+  - `Email`;
+  - `Телефон`.
 - Добавлен экран восстановления пароля: `lib/screens/forgot_password_screen.dart`.
 - На экране логина добавлена ссылка `Забыли пароль?`.
 - Если пользователь уже ввёл email на экране логина, этот email передаётся и
@@ -21,6 +151,16 @@
 - Добавлены методы:
   - `AuthService.resetPassword`;
   - `AuthProvider.resetPassword`.
+- Добавлен вход по номеру телефона через SMS-код:
+  - `AuthService.requestPhoneCode`;
+  - `AuthService.verifyPhoneCode`;
+  - `AuthProvider.requestPhoneCode`;
+  - `AuthProvider.verifyPhoneCode`;
+  - экран ввода кода `lib/screens/sms_code_screen.dart`.
+- В dev-режиме реальная отправка SMS пока не подключена: backend печатает код
+  в лог вида `[SMS] phone=... code=...`.
+- На экране регистрации добавлено необязательное поле `Телефон`, чтобы можно
+  сразу привязать номер к email-аккаунту.
 
 ### Загрузка заметок после перезапуска
 
@@ -82,7 +222,11 @@
 - Нижняя кнопка камеры теперь добавляет фото внутрь заметки:
   - можно сделать одно фото;
   - можно выбрать одно или несколько фото из галереи.
-- Фото внутри заметки отображаются отдельной горизонтальной лентой.
+- Фото внутри заметки в редакторе отображаются плиткой по 3 колонки, а не
+  горизонтальной лентой, чтобы изображения не уходили за экран.
+- Основная область редактора стала прокручиваемой, поэтому несколько рядов фото
+  не ломают нижнюю панель действий.
+- В режиме просмотра фото внутри заметки также отображаются плиткой по 3 колонки.
 - В режиме просмотра фото можно открыть на весь экран:
   - тап по обложке открывает fullscreen;
   - тап по фото из ленты открывает fullscreen с выбранного фото;
@@ -90,6 +234,18 @@
   - фото листаются свайпом;
   - поддерживается zoom через `InteractiveViewer`;
   - сверху показывается счётчик `N / total`.
+
+### Список заметок
+
+- На экране списка заметок добавлено переключение вида:
+  - плитки;
+  - построчный список.
+- Кнопка переключения меняет иконку:
+  - в режиме плиток показывает `view_list`;
+  - в режиме списка показывает `grid_view`.
+- Tap и long press работают в обоих режимах:
+  - tap открывает просмотр;
+  - long press открывает действия редактирования/удаления.
 
 ### Web-совместимость
 
@@ -134,6 +290,32 @@
 - Добавлен endpoint `POST /api/auth/reset-password`.
 - Пароль пользователя обновляется через bcrypt-хеш.
 - Формат ошибок сохраняет контракт `{"error": "..."}`.
+
+### Вход по телефону
+
+- Добавлена миграция `008_add_phone_login.sql`:
+  - добавляет колонку `users.phone`;
+  - добавляет уникальный индекс по непустому `phone`;
+  - создаёт таблицу `sms_login_codes`.
+- Добавлены endpoint'ы:
+  - `POST /api/auth/phone/request-code`;
+  - `POST /api/auth/phone/verify-code`.
+- `request-code`:
+  - нормализует номер телефона;
+  - генерирует 6-значный код;
+  - сохраняет bcrypt-хеш кода в `sms_login_codes`;
+  - срок жизни кода: 5 минут;
+  - сбрасывает счётчик попыток;
+  - в dev-режиме пишет код в лог backend.
+- `verify-code`:
+  - проверяет код по bcrypt-хешу;
+  - ограничивает количество попыток;
+  - создаёт пользователя по телефону, если такого номера ещё нет;
+  - выдаёт обычный JWT, совместимый с текущей авторизацией приложения.
+- Реальная интеграция SMS-провайдера пока не подключена. Место подключения:
+  `/Users/vlad/projects/bar/backend/auth/phone_login.go`.
+- Email-логин теперь возвращает объект `user` с `id`, `name`, `email`, `phone`,
+  не только `token/userId`.
 
 ### Защита и шифрование protected-заметок
 
@@ -257,6 +439,10 @@
   - добавляет `"photoPaths" TEXT[] NOT NULL DEFAULT '{}'`.
 - `007_add_note_encryption_salt.sql`
   - добавляет `"encryptionSalt" TEXT NOT NULL DEFAULT ''`.
+- `008_add_phone_login.sql`
+  - добавляет `users.phone`;
+  - добавляет уникальный индекс `users_phone_unique` по непустым телефонам;
+  - создаёт таблицу `sms_login_codes`.
 
 Миграции применяются автоматически при старте backend через `runMigrations`.
 
@@ -292,6 +478,19 @@ protected-заметки. В ответах API пароль не возвращ
 - Для отображения относительные пути приводятся к полному URL через
   `resolveMediaUrl`.
 
+## План по видео из ссылок
+
+- Создан план работ `tasks/plan.md` для добавления видео в заметку по ссылке.
+- В плане зафиксирован безопасный MVP:
+  - direct video URL можно скачивать и сохранять как файл на backend;
+  - YouTube/Instagram лучше сохранять как `link_only` с preview/embed, без
+    скачивания файла;
+  - для protected-заметок video media должны использовать тот же слой
+    `smedia:v1`;
+  - нужна отдельная таблица `note_media`.
+- Universal downloader через обход YouTube/Instagram не рекомендован для
+  публичной сборки из-за правил платформ.
+
 ## Проверки, которые выполнялись
 
 Бэкенд:
@@ -326,6 +525,9 @@ flutter pub get
 
 После исправления Flutter SDK нужно выполнить `flutter pub get`, потому что в
 `pubspec.yaml` добавлена зависимость `cryptography`.
+
+После добавления входа по телефону `flutter analyze` всё ещё не удалось
+выполнить по той же причине локального SDK.
 
 ## Важные проблемы окружения
 
@@ -394,6 +596,10 @@ security find-identity -v -p codesigning
 
 - После изменений backend нужно перезапускать, иначе новые endpoint'ы, CORS,
   миграции и шифрование не применятся.
+- Для проверки входа по телефону в dev-режиме нужно смотреть код в логах backend:
+  `[SMS] phone=... code=...`.
+- Реальный SMS-провайдер пока не подключён; текущая реализация только готовит
+  flow и backend boundary.
 - Для web нельзя использовать `dart:io File` напрямую для выбранных картинок.
   Нужно работать через `XFile`/bytes или web-safe image provider.
 - Protected-заметки в списке намеренно замаскированы. Реальные данные приходят
@@ -419,6 +625,8 @@ security find-identity -v -p codesigning
 - `lib/providers/auth_provider.dart`;
 - `lib/providers/notes_provider.dart`;
 - `lib/screens/login_screen.dart`;
+- `lib/screens/sms_code_screen.dart`;
+- `lib/screens/register_screen.dart`;
 - `lib/screens/forgot_password_screen.dart`;
 - `lib/screens/start_screen.dart`;
 - `lib/screens/notes_grid_screen.dart`;
@@ -437,7 +645,9 @@ security find-identity -v -p codesigning
 - `/Users/vlad/projects/bar/backend/users.go`;
 - `/Users/vlad/projects/bar/backend/types.go`;
 - `/Users/vlad/projects/bar/backend/auth/login.go`;
+- `/Users/vlad/projects/bar/backend/auth/phone_login.go`;
 - `/Users/vlad/projects/bar/backend/auth/verify.go`;
 - `/Users/vlad/projects/bar/backend/migrations/005_add_note_protection.sql`;
 - `/Users/vlad/projects/bar/backend/migrations/006_add_note_photo_paths.sql`;
 - `/Users/vlad/projects/bar/backend/migrations/007_add_note_encryption_salt.sql`.
+- `/Users/vlad/projects/bar/backend/migrations/008_add_phone_login.sql`;
