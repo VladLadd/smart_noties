@@ -15,6 +15,8 @@ class Note {
   final Color color;
   final bool isPending;
   final bool isProtected;
+  final bool isHidden;
+  final String? hiddenKeyId;
   final String? protectionPassword;
 
   bool get isVideo => _isVideo || videos.isNotEmpty;
@@ -36,6 +38,8 @@ class Note {
     this.color = Colors.white,
     this.isPending = false,
     this.isProtected = false,
+    this.isHidden = false,
+    this.hiddenKeyId,
     this.protectionPassword,
   }) : _isVideo = isVideo;
 
@@ -52,9 +56,12 @@ class Note {
     Color? color,
     bool? isPending,
     bool? isProtected,
+    bool? isHidden,
+    String? hiddenKeyId,
     String? protectionPassword,
     bool clearImagePath = false,
     bool clearVoicePath = false,
+    bool clearHiddenKeyId = false,
     bool clearProtectionPassword = false,
   }) {
     final nextVideos = videos ?? this.videos;
@@ -71,6 +78,8 @@ class Note {
       color: color ?? this.color,
       isPending: isPending ?? this.isPending,
       isProtected: isProtected ?? this.isProtected,
+      isHidden: isHidden ?? this.isHidden,
+      hiddenKeyId: clearHiddenKeyId ? null : (hiddenKeyId ?? this.hiddenKeyId),
       protectionPassword: clearProtectionPassword
           ? null
           : (protectionPassword ?? this.protectionPassword),
@@ -78,20 +87,22 @@ class Note {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'body': body,
-    'imagePath': imagePath,
-    'photoPaths': photoPaths,
-    'voicePath': voicePath,
-    'isVoice': isVoice,
-    'isVideo': isVideo,
-    'videos': videos.map((video) => video.toJson()).toList(),
-    'color': color.value,
-    'isPending': isPending,
-    'isProtected': isProtected,
-    'protectionPassword': protectionPassword,
-  };
+        'id': id,
+        'title': title,
+        'body': body,
+        'imagePath': imagePath,
+        'photoPaths': photoPaths,
+        'voicePath': voicePath,
+        'isVoice': isVoice,
+        'isVideo': isVideo,
+        'videos': videos.map((video) => video.toJson()).toList(),
+        'color': color.toARGB32(),
+        'isPending': isPending,
+        'isProtected': isProtected,
+        'isHidden': isHidden,
+        'hiddenKeyId': hiddenKeyId,
+        'protectionPassword': protectionPassword,
+      };
 
   factory Note.fromJson(Map<String, dynamic> json) {
     final videos = NoteVideo.listFromJson(json['videos']);
@@ -108,6 +119,8 @@ class Note {
       color: Color(json['color'] as int? ?? 0xFFFFFFFF),
       isPending: json['isPending'] as bool? ?? false,
       isProtected: _readBool(json['isProtected']),
+      isHidden: _readBool(json['isHidden']),
+      hiddenKeyId: _readNullableString(json['hiddenKeyId']),
       protectionPassword: json['protectionPassword'] as String?,
     );
   }

@@ -816,7 +816,7 @@ class _TokenRequestsPanelState extends State<_TokenRequestsPanel> {
             child: SizedBox(
               width: 260,
               child: DropdownButtonFormField<String>(
-                value: _status,
+                initialValue: _status,
                 decoration: const InputDecoration(
                   labelText: 'Статус',
                   border: OutlineInputBorder(),
@@ -977,7 +977,9 @@ class _UsersList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
-    if (users.isEmpty) return const _EmptyState(text: 'Пользователи не найдены');
+    if (users.isEmpty) {
+      return const _EmptyState(text: 'Пользователи не найдены');
+    }
 
     return ListView.separated(
       itemCount: users.length,
@@ -1147,7 +1149,7 @@ class _NfcKeysTable extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(const Color(0xFFF4F5F7)),
+          headingRowColor: WidgetStateProperty.all(const Color(0xFFF4F5F7)),
           columns: const [
             DataColumn(label: Text('Название')),
             DataColumn(label: Text('Tag ID')),
@@ -1205,7 +1207,7 @@ class _TokenRequestsTable extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(const Color(0xFFF4F5F7)),
+          headingRowColor: WidgetStateProperty.all(const Color(0xFFF4F5F7)),
           columns: const [
             DataColumn(label: Text('Пользователь')),
             DataColumn(label: Text('Название')),
@@ -1410,9 +1412,9 @@ class _ErrorBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.08),
+        color: Colors.red.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withOpacity(0.25)),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [

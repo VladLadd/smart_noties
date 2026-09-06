@@ -14,6 +14,11 @@ analyzer:
   # не является кодом приложения и не анализируется.
   exclude:
     - tasks/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - macos/**
 
 linter:
   # The lint rules applied to this project can be customized in the

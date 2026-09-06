@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/note_model.dart';
 import '../models/note_video_model.dart';
+import '../models/nfc_unlock_model.dart';
 import '../models/video_preview_model.dart';
 import 'api_config.dart';
 import 'note_client_crypto.dart';
@@ -13,13 +14,18 @@ final String _baseUrl = apiBaseUrl;
 const String _pendingNotesKey = 'pending_notes';
 
 class NotesService {
-  Future<List<Note>> fetchNotes({required String token}) async {
-    final response = await http
-        .get(
-          Uri.parse('$_baseUrl/api/notes'),
-          headers: {'Authorization': 'Bearer $token'},
-        )
-        .timeout(const Duration(seconds: 15));
+  Future<List<Note>> fetchNotes({
+    required String token,
+    String? hiddenAccessToken,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/api/notes'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        if (hiddenAccessToken != null && hiddenAccessToken.isNotEmpty)
+          'X-Hidden-Access': hiddenAccessToken,
+      },
+    ).timeout(const Duration(seconds: 15));
 
     if (response.statusCode >= 400) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -49,13 +55,15 @@ class NotesService {
       'title': requestNote.title,
       'body': requestNote.body,
       'userId': userId,
-      'color': requestNote.color.value,
+      'color': requestNote.color.toARGB32(),
       'isVoice': requestNote.isVoice,
       'isVideo': requestNote.isVideo,
       'imagePath': requestNote.imagePath ?? '',
       'photoPaths': requestNote.photoPaths,
       'voicePath': requestNote.voicePath ?? '',
       'isProtected': note.hasProtection,
+      'isHidden': note.isHidden,
+      'hiddenKeyId': note.hiddenKeyId ?? '',
       'protectionPassword': password,
     };
     final logBody = Map<String, dynamic>.from(requestBody);
@@ -103,13 +111,15 @@ class NotesService {
     final requestBody = {
       'title': requestNote.title,
       'body': requestNote.body,
-      'color': requestNote.color.value,
+      'color': requestNote.color.toARGB32(),
       'isVoice': requestNote.isVoice,
       'isVideo': requestNote.isVideo,
       'imagePath': requestNote.imagePath ?? '',
       'photoPaths': requestNote.photoPaths,
       'voicePath': requestNote.voicePath ?? '',
       'isProtected': note.hasProtection,
+      'isHidden': note.isHidden,
+      'hiddenKeyId': note.hiddenKeyId ?? '',
       'protectionPassword': password,
     };
     final logBody = Map<String, dynamic>.from(requestBody);
@@ -269,16 +279,39 @@ class NotesService {
     return NoteVideo.fromJson(json);
   }
 
+  Future<NfcUnlockResult> unlockHiddenNotes({
+    required String token,
+    required String tagId,
+    required String secret,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/nfc/unlock'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'tagId': tagId, 'secret': secret}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode >= 400) {
+      throw Exception(
+          _errorMessage(response, 'Не удалось открыть скрытые заметки'));
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return NfcUnlockResult.fromJson(json);
+  }
+
   Future<void> deleteVideo({
     required String id,
     required String token,
   }) async {
-    final response = await http
-        .delete(
-          Uri.parse('$_baseUrl/api/video/$id'),
-          headers: {'Authorization': 'Bearer $token'},
-        )
-        .timeout(const Duration(seconds: 15));
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/api/video/$id'),
+      headers: {'Authorization': 'Bearer $token'},
+    ).timeout(const Duration(seconds: 15));
 
     if (response.statusCode >= 400) {
       throw Exception(_errorMessage(response, 'Не удалось удалить видео'));
@@ -298,8 +331,7 @@ class NotesService {
           ..files.add(await http.MultipartFile.fromPath('file', file.path));
     _applyMediaProtection(request, mediaPassword);
 
-    final streamed =
-        await request.send().timeout(const Duration(seconds: 30));
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
     final response = await http.Response.fromStream(streamed);
 
     // ignore: avoid_print
@@ -331,8 +363,7 @@ class NotesService {
           ..files.add(await http.MultipartFile.fromPath('file', file.path));
     _applyMediaProtection(request, mediaPassword);
 
-    final streamed =
-        await request.send().timeout(const Duration(seconds: 30));
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
     final response = await http.Response.fromStream(streamed);
 
     // ignore: avoid_print
@@ -369,8 +400,7 @@ class NotesService {
           );
     _applyMediaProtection(request, mediaPassword);
 
-    final streamed =
-        await request.send().timeout(const Duration(seconds: 30));
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
     final response = await http.Response.fromStream(streamed);
 
     // ignore: avoid_print
@@ -438,6 +468,10 @@ class NotesService {
       'isVideo': json['isVideo'] == true,
       'color': json['color'] as int? ?? 0xFFFFFFFF,
       'isProtected': _readBool(json['isProtected']),
+      'isHidden': _readBool(json['isHidden']),
+      'hiddenKeyId': (json['hiddenKeyId'] as String?)?.isEmpty == true
+          ? null
+          : json['hiddenKeyId'],
     });
   }
 

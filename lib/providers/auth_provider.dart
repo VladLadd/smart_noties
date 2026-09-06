@@ -32,7 +32,8 @@ class AuthProvider extends ChangeNotifier {
     email = _extractEmailFromJwt(savedToken);
     role = _extractRoleFromJwt(savedToken) ?? 'user';
     // ignore: avoid_print
-    print('[AUTH] auto-login: userId=$userId token=${savedToken.substring(0, 20)}...');
+    print(
+        '[AUTH] auto-login: userId=$userId token=${savedToken.substring(0, 20)}...');
 
     if (userId != null) {
       await _service.saveUserId(userId!);
@@ -98,7 +99,8 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _persist(({String token, AuthUser user}) result) async {
     token = result.token;
     user = result.user;
-    userId = int.tryParse(result.user.id) ?? _extractUserIdFromJwt(result.token);
+    userId =
+        int.tryParse(result.user.id) ?? _extractUserIdFromJwt(result.token);
     email = result.user.email.isNotEmpty
         ? result.user.email
         : _extractEmailFromJwt(result.token);
@@ -123,7 +125,8 @@ class AuthProvider extends ChangeNotifier {
       final json = jsonDecode(decoded) as Map<String, dynamic>;
       // ignore: avoid_print
       print('[AUTH] JWT payload=$json');
-      final raw = json['id'] ?? json['userId'] ?? json['user_id'] ?? json['sub'];
+      final raw =
+          json['id'] ?? json['userId'] ?? json['user_id'] ?? json['sub'];
       if (raw == null) return null;
       return raw is int ? raw : int.tryParse(raw.toString());
     } catch (e) {

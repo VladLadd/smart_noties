@@ -1,14 +1,22 @@
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
 /// Базовый URL бэкенда.
 ///
 /// На Android-эмуляторе host-машина доступна по 10.0.2.2 — `localhost` там
 /// указывает на сам эмулятор. На iOS-симуляторе, desktop и web работает localhost.
-final String apiBaseUrl = kIsWeb
-    ? 'http://localhost:8070'
-    : defaultTargetPlatform == TargetPlatform.android
-        ? 'http://10.0.2.2:8070'
-        : 'http://localhost:8070';
+///
+/// Для физического устройства передавайте адрес Mac в локальной сети:
+/// `--dart-define=API_BASE_URL=http://192.168.x.x:8070`.
+const String _apiBaseUrlOverride = String.fromEnvironment('API_BASE_URL');
+
+final String apiBaseUrl = _apiBaseUrlOverride.isNotEmpty
+    ? _apiBaseUrlOverride
+    : kIsWeb
+        ? 'http://localhost:8070'
+        : defaultTargetPlatform == TargetPlatform.android
+            ? 'http://10.0.2.2:8070'
+            : 'http://localhost:8070';
 
 /// Признак удалённого (серверного) медиа-пути: полный URL или относительный
 /// путь к API бэкенда (`/api/voice/...`, устар. `/uploads/...`). Локальные

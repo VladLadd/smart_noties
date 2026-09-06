@@ -5,24 +5,51 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/note_model.dart';
 import '../models/note_video_model.dart';
+import '../models/nfc_unlock_model.dart';
 import '../models/video_preview_model.dart';
 import '../services/note_client_crypto.dart';
 import '../services/notes_service.dart';
 
 class NotesProvider extends ChangeNotifier {
+  static const hiddenSessionDuration = Duration(minutes: 10);
+
   final _service = NotesService();
   final List<Note> _notes = [];
   bool _loadingServerNotes = false;
+  bool _unlockingHiddenNotes = false;
   String? _loadedToken;
+  String? _loadedHiddenAccessToken;
+  String? _hiddenAccessToken;
+  String? _hiddenKeyId;
+  DateTime? _hiddenSessionExpiresAt;
+  Timer? _hiddenSessionTimer;
 
-  List<Note> get notes => List.unmodifiable(_notes);
+  List<Note> get notes => List.unmodifiable(
+        _notes.where((note) => !note.isHidden || isHiddenNotesVisible),
+      );
   bool get loadingServerNotes => _loadingServerNotes;
+  bool get unlockingHiddenNotes => _unlockingHiddenNotes;
+  bool get isHiddenNotesVisible =>
+      _hiddenAccessToken != null &&
+      _hiddenSessionExpiresAt != null &&
+      DateTime.now().isBefore(_hiddenSessionExpiresAt!);
+  Duration get hiddenSessionRemaining {
+    final expiresAt = _hiddenSessionExpiresAt;
+    if (expiresAt == null || !isHiddenNotesVisible) return Duration.zero;
+    return expiresAt.difference(DateTime.now());
+  }
+
+  String? get activeHiddenKeyId {
+    if (!isHiddenNotesVisible) return null;
+    return _hiddenKeyId;
+  }
 
   bool shouldLoadServerNotes(String? token) {
     return token != null &&
         token.isNotEmpty &&
         !_loadingServerNotes &&
-        _loadedToken != token;
+        (_loadedToken != token ||
+            _loadedHiddenAccessToken != _activeHiddenAccessToken);
   }
 
   NotesProvider() {
@@ -42,14 +69,23 @@ class NotesProvider extends ChangeNotifier {
   }) async {
     if (token == null || token.isEmpty) return;
     if (_loadingServerNotes) return;
-    if (!force && _loadedToken == token) return;
+    final hiddenAccessToken = _activeHiddenAccessToken;
+    if (!force &&
+        _loadedToken == token &&
+        _loadedHiddenAccessToken == hiddenAccessToken) {
+      return;
+    }
 
     _loadingServerNotes = true;
     _loadedToken = token;
+    _loadedHiddenAccessToken = hiddenAccessToken;
     notifyListeners();
 
     try {
-      final serverNotes = await _service.fetchNotes(token: token);
+      final serverNotes = await _service.fetchNotes(
+        token: token,
+        hiddenAccessToken: hiddenAccessToken,
+      );
       _notes.removeWhere((note) => !note.isPending);
       _notes.addAll(serverNotes);
       notifyListeners();
@@ -60,6 +96,70 @@ class NotesProvider extends ChangeNotifier {
       _loadingServerNotes = false;
       notifyListeners();
     }
+  }
+
+  Future<void> unlockHiddenNotes({
+    required NfcUnlockPayload payload,
+    required String? token,
+  }) async {
+    if (token == null || token.isEmpty) {
+      throw Exception('Необходима авторизация');
+    }
+
+    _unlockingHiddenNotes = true;
+    notifyListeners();
+    try {
+      final result = await _service.unlockHiddenNotes(
+        token: token,
+        tagId: payload.tagId,
+        secret: payload.secret,
+      );
+      if (result.hiddenAccessToken.isEmpty) {
+        throw Exception('Backend не вернул hidden-token');
+      }
+
+      final serverTTL = Duration(seconds: result.expiresInSeconds);
+      final ttl =
+          serverTTL <= Duration.zero || serverTTL > hiddenSessionDuration
+              ? hiddenSessionDuration
+              : serverTTL;
+      _hiddenAccessToken = result.hiddenAccessToken;
+      _hiddenKeyId = result.keyId;
+      _hiddenSessionExpiresAt = DateTime.now().add(ttl);
+      _restartHiddenSessionTimer(ttl);
+
+      await loadServerNotes(token: token, force: true);
+    } finally {
+      _unlockingHiddenNotes = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> lockHiddenNotes({String? token}) async {
+    _hiddenSessionTimer?.cancel();
+    _hiddenSessionTimer = null;
+    _hiddenAccessToken = null;
+    _hiddenKeyId = null;
+    _hiddenSessionExpiresAt = null;
+    _loadedHiddenAccessToken = null;
+    _notes.removeWhere((note) => note.isHidden);
+    notifyListeners();
+
+    if (token != null && token.isNotEmpty) {
+      await loadServerNotes(token: token, force: true);
+    }
+  }
+
+  String? get _activeHiddenAccessToken {
+    if (!isHiddenNotesVisible) return null;
+    return _hiddenAccessToken;
+  }
+
+  void _restartHiddenSessionTimer(Duration ttl) {
+    _hiddenSessionTimer?.cancel();
+    _hiddenSessionTimer = Timer(ttl, () {
+      unawaited(lockHiddenNotes());
+    });
   }
 
   Future<void> addNote(
@@ -301,7 +401,8 @@ class NotesProvider extends ChangeNotifier {
   }) async {
     if (!note.hasProtection) return note;
 
-    if (note.protectionPassword != null && note.protectionPassword!.isNotEmpty) {
+    if (note.protectionPassword != null &&
+        note.protectionPassword!.isNotEmpty) {
       if (note.protectionPassword == password) {
         final unlocked = await decryptNoteFromClient(note, password);
         final index = _notes.indexWhere((item) => item.id == note.id);
@@ -349,5 +450,11 @@ class NotesProvider extends ChangeNotifier {
     _notes.removeAt(index);
     notifyListeners();
     await _savePendingNotes();
+  }
+
+  @override
+  void dispose() {
+    _hiddenSessionTimer?.cancel();
+    super.dispose();
   }
 }

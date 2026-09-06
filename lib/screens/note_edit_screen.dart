@@ -3,16 +3,19 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../l10n/app_strings.dart';
 import '../models/note_model.dart';
 import '../models/note_video_model.dart';
 import '../models/video_preview_model.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 import '../services/api_config.dart';
 import '../widgets/color_picker_menu.dart';
 import '../widgets/voice_message_player.dart';
@@ -36,6 +39,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     with TickerProviderStateMixin {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
+  late final FocusNode _bodyFocusNode;
   late Color _selectedColor;
 
   String? _coverImagePath;
@@ -48,6 +52,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   Timer? _timer;
   bool _isProtected = false;
   String? _protectionPassword;
+  bool _isHidden = false;
+  String? _hiddenKeyId;
+  bool _showBodyPreview = false;
 
   final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
   late AnimationController _animController;
@@ -69,9 +76,12 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
     _titleController = TextEditingController(text: note?.title ?? '');
     _bodyController = TextEditingController(text: note?.body ?? '');
+    _bodyFocusNode = FocusNode();
     _selectedColor = note?.color ?? Colors.white;
     _isProtected = note?.hasProtection ?? false;
     _protectionPassword = note?.protectionPassword;
+    _isHidden = note?.isHidden ?? false;
+    _hiddenKeyId = note?.hiddenKeyId;
     _isLocked = _isProtected && !widget.initiallyUnlocked;
 
     _coverImagePath = note?.imagePath;
@@ -101,6 +111,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   void dispose() {
     _titleController.dispose();
     _bodyController.dispose();
+    _bodyFocusNode.dispose();
     _recorder.closeRecorder();
     _animController.dispose();
     _pulseController.dispose();
@@ -147,6 +158,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           );
         _recordedPath = unlocked.voicePath;
         _isProtected = unlocked.hasProtection;
+        _isHidden = unlocked.isHidden;
+        _hiddenKeyId = unlocked.hiddenKeyId;
         _protectionPassword = password;
         _isLocked = false;
       });
@@ -160,23 +173,22 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   Future<void> _onColorSelected(Color color) async {
     if (_hasImage) {
+      final strings = context.readStrings;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Заменить картинку?'),
-          content: const Text(
-            'Выбранный цвет заменит текущее изображение заметки.',
-          ),
+          title: Text(strings.replaceImageQuestion),
+          content: Text(strings.replaceImageMessage),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Отмена'),
+              child: Text(strings.cancel),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text(
-                'Заменить',
-                style: TextStyle(color: Colors.red),
+              child: Text(
+                strings.replace,
+                style: const TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -190,7 +202,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   Future<void> _pickCoverImage() async {
     final source = await _showImageSourceSheet(
-      title: 'Обложка заметки',
+      title: context.readStrings.coverImage,
       allowGalleryMultiple: false,
     );
     if (source == null) return;
@@ -206,7 +218,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   Future<void> _addPhotos() async {
     final source = await _showImageSourceSheet(
-      title: 'Фотографии заметки',
+      title: context.readStrings.notePhotos,
       allowGalleryMultiple: true,
     );
     if (source == null) return;
@@ -257,15 +269,15 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera),
-              title: const Text('Сделать фото'),
+              title: Text(ctx.strings.takePhoto),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: Text(
                 allowGalleryMultiple
-                    ? 'Выбрать одно или несколько фото'
-                    : 'Выбрать из галереи',
+                    ? ctx.strings.chooseOneOrMorePhotos
+                    : ctx.strings.chooseFromGallery,
               ),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
@@ -285,8 +297,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       if (!status.isGranted) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Нужен доступ к микрофону для записи'),
+          SnackBar(
+            content: Text(context.readStrings.micPermissionRequired),
           ),
         );
         return;
@@ -345,17 +357,17 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     final token = auth.token;
     if (userId == null || token == null || token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Необходима авторизация для отправки')),
+        SnackBar(content: Text(context.readStrings.authRequiredToSend)),
       );
       return;
     }
     setState(() => _syncing = true);
     try {
       await context.read<NotesProvider>().syncNote(
-        _currentNote!,
-        userId: userId,
-        token: token,
-      );
+            _currentNote!,
+            userId: userId,
+            token: token,
+          );
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -413,7 +425,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: const Text('Голос не загружен, сохранён локально'),
+                  content: Text(context.readStrings.voiceNotUploadedLocal),
                   backgroundColor: Colors.orange[800],
                 ),
               );
@@ -437,6 +449,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           isProtected: _isProtected,
           protectionPassword: _protectionPassword,
           clearProtectionPassword: !_isProtected,
+          isHidden: _isHidden,
+          hiddenKeyId: _isHidden ? _hiddenKeyId : null,
+          clearHiddenKeyId: !_isHidden,
         );
         await provider.updateNote(updated, token: auth.token);
       } else {
@@ -452,6 +467,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             color: _selectedColor,
             isProtected: _isProtected,
             protectionPassword: _isProtected ? _protectionPassword : null,
+            isHidden: _isHidden,
+            hiddenKeyId: _isHidden ? _hiddenKeyId : null,
           ),
           userId: auth.userId,
           token: auth.token,
@@ -502,9 +519,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
-              'Изображение не загружено, сохранён локальный путь',
-            ),
+            content: Text(context.readStrings.imageNotUploadedLocal),
             backgroundColor: Colors.orange[800],
           ),
         );
@@ -545,6 +560,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Widget _buildLockedScreen() {
+    final strings = context.strings;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -561,9 +577,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
               const Spacer(),
               const Icon(Icons.lock, size: 48),
               const SizedBox(height: 16),
-              const Text(
-                'Защищённая заметка',
-                style: TextStyle(
+              Text(
+                strings.protectedNote,
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'Georgia',
@@ -571,7 +587,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                'Введите пароль, чтобы читать и редактировать заметку.',
+                strings.enterPasswordToReadAndEditNote,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[700]),
               ),
@@ -579,7 +595,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
               ElevatedButton.icon(
                 onPressed: _requestUnlock,
                 icon: const Icon(Icons.lock_open),
-                label: const Text('Ввести пароль'),
+                label: Text(strings.enterPasswordButton),
               ),
               const Spacer(),
             ],
@@ -590,6 +606,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Widget _buildTopBar() {
+    final strings = context.strings;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -613,11 +630,29 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                           Icons.cloud_upload_outlined,
                           color: Colors.orange,
                         ),
-                        tooltip: 'Отправить на сервер',
+                        tooltip: strings.uploadToServer,
                         onPressed: _syncNote,
                       ),
                 const SizedBox(width: 8),
               ],
+              IconButton(
+                icon: Icon(
+                  Icons.visibility_off,
+                  color: _isHidden ? Colors.black87 : Colors.grey[600],
+                ),
+                tooltip:
+                    _isHidden ? strings.removeNfcHiding : strings.hideNoteByNfc,
+                onPressed: _toggleHiddenNote,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(_isProtected ? Icons.lock : Icons.lock_open),
+                tooltip: _isProtected
+                    ? strings.changeProtection
+                    : strings.protectNote,
+                onPressed: _showProtectionDialog,
+              ),
+              const SizedBox(width: 8),
               if (_isEditing) ...[
                 IconButton(
                   icon: _deleting
@@ -627,7 +662,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.delete_outline, color: Colors.red),
-                  tooltip: 'Удалить заметку',
+                  tooltip: strings.deleteNote,
                   onPressed: _deleting ? null : _confirmDeleteNote,
                 ),
                 const SizedBox(width: 8),
@@ -636,13 +671,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 selectedColor: _selectedColor,
                 onColorSelected: _onColorSelected,
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: Icon(_isProtected ? Icons.lock : Icons.lock_open),
-                tooltip: _isProtected ? 'Изменить защиту' : 'Защитить заметку',
-                onPressed: _showProtectionDialog,
-              ),
-              const SizedBox(width: 16)
+              const SizedBox(width: 16),
             ],
           ),
         ],
@@ -653,22 +682,26 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   Future<void> _confirmDeleteNote() async {
     final note = _currentNote;
     if (note == null) return;
+    final strings = context.readStrings;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Удалить заметку?'),
+        title: Text(strings.deleteNoteQuestion),
         content: Text(
-          note.title.isNotEmpty ? '«${note.title}»' : 'Заметка будет удалена.',
+          note.title.isNotEmpty ? '«${note.title}»' : strings.noteWillBeDeleted,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Отмена'),
+            child: Text(strings.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+            child: Text(
+              strings.delete,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -714,9 +747,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
-              'Защита включена локально. Перезапустите backend для сохранения на сервере.',
-            ),
+            content: Text(context.readStrings.localProtectionWarning),
             backgroundColor: Colors.orange[800],
           ),
         );
@@ -725,6 +756,31 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     setState(() {
       _isProtected = result.enabled;
       _protectionPassword = result.enabled ? result.password : null;
+    });
+  }
+
+  void _toggleHiddenNote() {
+    if (_isHidden) {
+      setState(() {
+        _isHidden = false;
+        _hiddenKeyId = null;
+      });
+      return;
+    }
+
+    final keyId = context.read<NotesProvider>().activeHiddenKeyId;
+    if (keyId == null || keyId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.readStrings.openHiddenFirst),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isHidden = true;
+      _hiddenKeyId = keyId;
     });
   }
 
@@ -750,13 +806,13 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         child: Stack(
           children: [
             if (imageProvider == null)
-              const Center(
+              Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.add_photo_alternate_outlined, size: 32),
-                    SizedBox(height: 8),
-                    Text('Нажмите, чтобы выбрать обложку'),
+                    const Icon(Icons.add_photo_alternate_outlined, size: 32),
+                    const SizedBox(height: 8),
+                    Text(context.strings.chooseCoverTap),
                   ],
                 ),
               ),
@@ -766,7 +822,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.72),
+                  color: Colors.black.withValues(alpha: 0.72),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.edit, color: Colors.white, size: 18),
@@ -816,7 +872,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                       color: Colors.black87,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                    child:
+                        const Icon(Icons.close, color: Colors.white, size: 16),
                   ),
                 ),
               ),
@@ -854,9 +911,11 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Widget _buildTextFields() {
+    final strings = context.strings;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
             controller: _titleController,
@@ -865,23 +924,171 @@ class _NoteEditScreenState extends State<NoteEditScreen>
               fontWeight: FontWeight.bold,
               fontFamily: 'Georgia',
             ),
-            decoration: const InputDecoration(
-              hintText: 'Заголовок...',
+            decoration: InputDecoration(
+              hintText: strings.titleHint,
               border: InputBorder.none,
             ),
           ),
-          TextField(
-            controller: _bodyController,
-            maxLines: 3,
-            style: const TextStyle(fontSize: 16),
-            decoration: const InputDecoration(
-              hintText: 'Введите текст заметки...',
-              border: InputBorder.none,
-            ),
+          const SizedBox(height: 4),
+          _RichTextToolbar(
+            previewEnabled: _showBodyPreview,
+            onTogglePreview: () {
+              setState(() => _showBodyPreview = !_showBodyPreview);
+              if (_showBodyPreview) {
+                _bodyFocusNode.unfocus();
+              } else {
+                _bodyFocusNode.requestFocus();
+              }
+            },
+            onBold: () => _wrapBodySelection('**', '**', strings.boldSample),
+            onItalic: () => _wrapBodySelection('_', '_', strings.italicSample),
+            onHeading: () => _prefixBodyLines('## ', strings.headingSample),
+            onBulletList: () => _prefixBodyLines('- ', strings.listItemSample),
+            onNumberedList: () =>
+                _prefixBodyLines('1. ', strings.listItemSample),
+            onChecklist: () => _prefixBodyLines('- [ ] ', strings.taskSample),
+            onQuote: () => _prefixBodyLines('> ', strings.quoteSample),
+            onInlineCode: () =>
+                _wrapBodySelection('`', '`', strings.codeSample),
+            onLink: _insertMarkdownLink,
+          ),
+          const SizedBox(height: 8),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            child: _showBodyPreview
+                ? _buildBodyPreview(strings)
+                : TextField(
+                    key: const ValueKey('body-editor'),
+                    controller: _bodyController,
+                    focusNode: _bodyFocusNode,
+                    minLines: 8,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    style: const TextStyle(fontSize: 16, height: 1.4),
+                    decoration: InputDecoration(
+                      hintText: strings.bodyHint,
+                      border: InputBorder.none,
+                    ),
+                  ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildBodyPreview(AppStrings strings) {
+    final scheme = Theme.of(context).colorScheme;
+    final markdown = _bodyController.text.trim();
+    return Container(
+      key: const ValueKey('body-preview'),
+      constraints: const BoxConstraints(minHeight: 180),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      alignment: Alignment.topLeft,
+      child: markdown.isEmpty
+          ? Text(
+              strings.formattedTextPreview,
+              style: TextStyle(
+                color: scheme.onSurface.withValues(alpha: 0.54),
+                fontSize: 16,
+              ),
+            )
+          : MarkdownBody(
+              data: markdown,
+              selectable: true,
+              softLineBreak: true,
+              styleSheet: MarkdownStyleSheet.fromTheme(
+                Theme.of(context),
+              ).copyWith(
+                p: TextStyle(
+                  fontSize: 16,
+                  height: 1.4,
+                  color: scheme.onSurface,
+                ),
+                h1: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: scheme.onSurface,
+                ),
+                h2: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                  color: scheme.onSurface,
+                ),
+                h3: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+                blockquote: TextStyle(
+                  fontSize: 16,
+                  height: 1.4,
+                  color: scheme.onSurface.withValues(alpha: 0.72),
+                  fontStyle: FontStyle.italic,
+                ),
+                code: TextStyle(
+                  color: scheme.onSurface,
+                  backgroundColor: scheme.onSurface.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+    );
+  }
+
+  void _wrapBodySelection(
+    String prefix,
+    String suffix,
+    String placeholder,
+  ) {
+    final text = _bodyController.text;
+    final selection = _safeBodySelection(text);
+    final selected = selection.textInside(text);
+    final replacement =
+        '$prefix${selected.isEmpty ? placeholder : selected}$suffix';
+    _replaceBodySelection(selection, replacement);
+  }
+
+  void _prefixBodyLines(String prefix, String placeholder) {
+    final text = _bodyController.text;
+    final selection = _safeBodySelection(text);
+    final selected = selection.textInside(text);
+    final source = selected.isEmpty ? placeholder : selected;
+    final replacement = source
+        .split('\n')
+        .map((line) => line.startsWith(prefix) ? line : '$prefix$line')
+        .join('\n');
+    _replaceBodySelection(selection, replacement);
+  }
+
+  void _insertMarkdownLink() {
+    final text = _bodyController.text;
+    final selection = _safeBodySelection(text);
+    final selected = selection.textInside(text).trim();
+    final title = selected.isEmpty ? context.readStrings.linkSample : selected;
+    _replaceBodySelection(selection, '[$title](https://)');
+  }
+
+  TextSelection _safeBodySelection(String text) {
+    final selection = _bodyController.selection;
+    if (!selection.isValid) {
+      return TextSelection.collapsed(offset: text.length);
+    }
+    final start = selection.start.clamp(0, text.length).toInt();
+    final end = selection.end.clamp(0, text.length).toInt();
+    return TextSelection(baseOffset: start, extentOffset: end);
+  }
+
+  void _replaceBodySelection(TextSelection selection, String replacement) {
+    final text = _bodyController.text;
+    final nextText =
+        selection.textBefore(text) + replacement + selection.textAfter(text);
+    final nextOffset = selection.start + replacement.length;
+    _bodyController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextOffset),
+    );
+    setState(() => _showBodyPreview = false);
+    _bodyFocusNode.requestFocus();
   }
 
   Widget _buildVoiceSection() {
@@ -892,9 +1099,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         path: _recordedPath!,
         token: context.read<AuthProvider>().token,
         mediaPassword: _isProtected ? _protectionPassword : null,
-        initialDuration: _recordedDuration > 0
-            ? Duration(seconds: _recordedDuration)
-            : null,
+        initialDuration:
+            _recordedDuration > 0 ? Duration(seconds: _recordedDuration) : null,
         onDelete: _deleteRecording,
       );
     }
@@ -910,9 +1116,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Видео',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          Text(
+            context.strings.video,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           GridView.builder(
@@ -960,7 +1166,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           ),
           const SizedBox(width: 12),
           Text(
-            'Запись  ${_fmt(Duration(seconds: _recordSeconds))}',
+            '${context.strings.record}  ${_fmt(Duration(seconds: _recordSeconds))}',
             style: const TextStyle(
               color: Colors.red,
               fontWeight: FontWeight.w600,
@@ -971,7 +1177,10 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           TextButton.icon(
             onPressed: _toggleRecording,
             icon: const Icon(Icons.stop_circle, color: Colors.red),
-            label: const Text('Стоп', style: TextStyle(color: Colors.red)),
+            label: Text(
+              context.strings.stop,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -1001,7 +1210,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                       color: Colors.white,
                     ),
                   )
-                : const Text('СОХРАНИТЬ'),
+                : Text(context.strings.saveUpper),
           ),
           Row(
             children: [
@@ -1031,7 +1240,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Widget _animatedIcon(IconData icon,
-      {required int delay, VoidCallback? onTap, Color background = Colors.black}) {
+      {required int delay,
+      VoidCallback? onTap,
+      Color background = Colors.black}) {
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _animController,
@@ -1055,22 +1266,22 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     final note = _currentNote;
     if (!_isEditing || note == null || note.id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Сначала сохраните заметку, затем добавьте видео'),
+        SnackBar(
+          content: Text(context.readStrings.saveNoteFirstAddVideo),
         ),
       );
       return;
     }
     if (note.isPending) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Сначала синхронизируйте заметку')),
+        SnackBar(content: Text(context.readStrings.syncNoteFirst)),
       );
       return;
     }
     if (_isProtected || note.hasProtection) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Видео для защищённых заметок пока не поддерживается'),
+        SnackBar(
+          content: Text(context.readStrings.protectedVideoUnsupported),
         ),
       );
       return;
@@ -1135,22 +1346,26 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   Future<void> _deleteVideo(NoteVideo video) async {
     final note = _currentNote;
     if (note == null) return;
+    final strings = context.readStrings;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Удалить видео?'),
+        title: Text(strings.deleteVideoQuestion),
         content: Text(
-          video.title.isNotEmpty ? video.title : 'Видео будет удалено.',
+          video.title.isNotEmpty ? video.title : strings.videoWillBeDeleted,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Отмена'),
+            child: Text(strings.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+            child: Text(
+              strings.delete,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -1183,22 +1398,178 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   void _showVideoLink(NoteVideo video) {
+    final strings = context.readStrings;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(video.title.isNotEmpty ? video.title : 'Видео'),
+        title: Text(
+          video.title.isNotEmpty ? video.title : strings.video,
+        ),
         content: SelectableText(
           video.sourceUrl.isNotEmpty
               ? video.sourceUrl
-              : 'Ссылка на видео недоступна',
+              : strings.videoLinkUnavailable,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Закрыть'),
+            child: Text(strings.close),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RichTextToolbar extends StatelessWidget {
+  final bool previewEnabled;
+  final VoidCallback onTogglePreview;
+  final VoidCallback onBold;
+  final VoidCallback onItalic;
+  final VoidCallback onHeading;
+  final VoidCallback onBulletList;
+  final VoidCallback onNumberedList;
+  final VoidCallback onChecklist;
+  final VoidCallback onQuote;
+  final VoidCallback onInlineCode;
+  final VoidCallback onLink;
+
+  const _RichTextToolbar({
+    required this.previewEnabled,
+    required this.onTogglePreview,
+    required this.onBold,
+    required this.onItalic,
+    required this.onHeading,
+    required this.onBulletList,
+    required this.onNumberedList,
+    required this.onChecklist,
+    required this.onQuote,
+    required this.onInlineCode,
+    required this.onLink,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.strings;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: scheme.outline),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            _FormatToolButton(
+              tooltip: previewEnabled ? strings.editor : strings.preview,
+              icon:
+                  previewEnabled ? Icons.edit_outlined : Icons.preview_outlined,
+              selected: previewEnabled,
+              onPressed: onTogglePreview,
+            ),
+            _ToolbarDivider(color: scheme.outline),
+            _FormatToolButton(
+              tooltip: strings.bold,
+              icon: Icons.format_bold,
+              onPressed: onBold,
+            ),
+            _FormatToolButton(
+              tooltip: strings.italic,
+              icon: Icons.format_italic,
+              onPressed: onItalic,
+            ),
+            _FormatToolButton(
+              tooltip: strings.heading,
+              icon: Icons.title,
+              onPressed: onHeading,
+            ),
+            _FormatToolButton(
+              tooltip: strings.bulletList,
+              icon: Icons.format_list_bulleted,
+              onPressed: onBulletList,
+            ),
+            _FormatToolButton(
+              tooltip: strings.numberedList,
+              icon: Icons.format_list_numbered,
+              onPressed: onNumberedList,
+            ),
+            _FormatToolButton(
+              tooltip: strings.checklist,
+              icon: Icons.check_box_outlined,
+              onPressed: onChecklist,
+            ),
+            _FormatToolButton(
+              tooltip: strings.quote,
+              icon: Icons.format_quote,
+              onPressed: onQuote,
+            ),
+            _FormatToolButton(
+              tooltip: strings.inlineCode,
+              icon: Icons.code,
+              onPressed: onInlineCode,
+            ),
+            _FormatToolButton(
+              tooltip: strings.link,
+              icon: Icons.link,
+              onPressed: onLink,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FormatToolButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  const _FormatToolButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          backgroundColor: selected ? scheme.primary : Colors.transparent,
+          foregroundColor: selected ? scheme.onPrimary : scheme.onSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: Icon(icon, size: 20),
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _ToolbarDivider extends StatelessWidget {
+  final Color color;
+
+  const _ToolbarDivider({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 24,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: color,
     );
   }
 }
@@ -1232,7 +1603,7 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
   Future<void> _loadPreview() async {
     final url = _urlController.text.trim();
     if (url.isEmpty) {
-      setState(() => _error = 'Вставьте ссылку');
+      setState(() => _error = context.readStrings.pasteLink);
       return;
     }
     setState(() {
@@ -1259,7 +1630,7 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
   Future<void> _addVideo() async {
     final url = _urlController.text.trim();
     if (url.isEmpty) {
-      setState(() => _error = 'Вставьте ссылку');
+      setState(() => _error = context.readStrings.pasteLink);
       return;
     }
     setState(() {
@@ -1286,9 +1657,10 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
   @override
   Widget build(BuildContext context) {
     final preview = _preview;
+    final strings = context.strings;
 
     return AlertDialog(
-      title: const Text('Добавить видео'),
+      title: Text(strings.addVideo),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -1298,9 +1670,9 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
             TextField(
               controller: _urlController,
               keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Ссылка на видео',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: strings.videoLink,
+                border: const OutlineInputBorder(),
               ),
               onSubmitted: (_) => _loadPreview(),
             ),
@@ -1322,12 +1694,12 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
       actions: [
         TextButton(
           onPressed: _adding ? null : () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(strings.cancel),
         ),
         TextButton.icon(
           onPressed: _loadingPreview || _adding ? null : _loadPreview,
           icon: const Icon(Icons.search),
-          label: const Text('Проверить'),
+          label: Text(strings.check),
         ),
         ElevatedButton.icon(
           onPressed: _loadingPreview || _adding ? null : _addVideo,
@@ -1338,7 +1710,7 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.add),
-          label: const Text('Добавить'),
+          label: Text(strings.add),
         ),
       ],
     );
@@ -1434,7 +1806,9 @@ class _VideoAttachmentTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    video.title.isNotEmpty ? video.title : 'Видео',
+                    video.title.isNotEmpty
+                        ? video.title
+                        : context.strings.video,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1453,7 +1827,8 @@ class _VideoAttachmentTile extends StatelessWidget {
               ),
             ),
             const Center(
-              child: Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
+              child:
+                  Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
             ),
             Positioned(
               top: 4,
@@ -1567,11 +1942,11 @@ class _NoteProtectionDialogState extends State<_NoteProtectionDialog> {
   void _save() {
     final password = _passwordCtrl.text;
     if (password.length < 6) {
-      setState(() => _errorText = 'Пароль должен быть не короче 6 символов');
+      setState(() => _errorText = context.readStrings.passwordMinSix);
       return;
     }
     if (password != _confirmCtrl.text) {
-      setState(() => _errorText = 'Пароли не совпадают');
+      setState(() => _errorText = context.readStrings.passwordsDoNotMatch);
       return;
     }
     Navigator.pop(
@@ -1582,8 +1957,9 @@ class _NoteProtectionDialogState extends State<_NoteProtectionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = context.strings;
     return AlertDialog(
-      title: const Text('Защита заметки'),
+      title: Text(strings.noteProtection),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1591,7 +1967,7 @@ class _NoteProtectionDialogState extends State<_NoteProtectionDialog> {
             controller: _passwordCtrl,
             obscureText: _obscure,
             decoration: InputDecoration(
-              labelText: 'Пароль',
+              labelText: strings.password,
               errorText: _errorText,
               suffixIcon: IconButton(
                 icon: Icon(
@@ -1606,7 +1982,7 @@ class _NoteProtectionDialogState extends State<_NoteProtectionDialog> {
             controller: _confirmCtrl,
             obscureText: _obscureConfirm,
             decoration: InputDecoration(
-              labelText: 'Подтвердите пароль',
+              labelText: strings.confirmPassword,
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureConfirm ? Icons.visibility_off : Icons.visibility,
@@ -1626,18 +2002,18 @@ class _NoteProtectionDialogState extends State<_NoteProtectionDialog> {
               context,
               const _ProtectionResult(enabled: false),
             ),
-            child: const Text(
-              'Снять защиту',
-              style: TextStyle(color: Colors.red),
+            child: Text(
+              strings.removeProtection,
+              style: const TextStyle(color: Colors.red),
             ),
           ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(strings.cancel),
         ),
         TextButton(
           onPressed: _save,
-          child: const Text('Сохранить'),
+          child: Text(strings.save),
         ),
       ],
     );
@@ -1652,7 +2028,8 @@ class _ProtectedNoteUnlockDialog extends StatefulWidget {
       _ProtectedNoteUnlockDialogState();
 }
 
-class _ProtectedNoteUnlockDialogState extends State<_ProtectedNoteUnlockDialog> {
+class _ProtectedNoteUnlockDialogState
+    extends State<_ProtectedNoteUnlockDialog> {
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
 
@@ -1665,18 +2042,18 @@ class _ProtectedNoteUnlockDialogState extends State<_ProtectedNoteUnlockDialog> 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Защищённая заметка'),
+      title: Text(context.strings.protectedNote),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Для редактирования этой заметки введите пароль.'),
+          Text(context.strings.enterPasswordToEditNote),
           const SizedBox(height: 16),
           TextField(
             controller: _passwordCtrl,
             obscureText: _obscure,
             autofocus: true,
             decoration: InputDecoration(
-              labelText: 'Пароль',
+              labelText: context.strings.password,
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscure ? Icons.visibility_off : Icons.visibility,
@@ -1691,11 +2068,11 @@ class _ProtectedNoteUnlockDialogState extends State<_ProtectedNoteUnlockDialog> 
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(context.strings.cancel),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, _passwordCtrl.text),
-          child: const Text('Открыть'),
+          child: Text(context.strings.open),
         ),
       ],
     );

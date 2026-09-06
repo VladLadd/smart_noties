@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../models/note_video_model.dart';
+import '../providers/locale_provider.dart';
 import '../services/api_config.dart';
 
 class NoteVideoPlayerScreen extends StatefulWidget {
@@ -34,14 +35,14 @@ class _NoteVideoPlayerScreenState extends State<NoteVideoPlayerScreen> {
   void _initPlayer() {
     final path = widget.video.storagePath?.trim() ?? '';
     if (path.isEmpty) {
-      setState(() => _error = 'Файл видео недоступен');
+      setState(() => _error = context.readStrings.videoFileUnavailable);
       return;
     }
 
     final url = resolveMediaUrl(path);
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme) {
-      setState(() => _error = 'Некорректный путь видео');
+      setState(() => _error = context.readStrings.invalidVideoPath);
       return;
     }
 
@@ -56,7 +57,7 @@ class _NoteVideoPlayerScreenState extends State<NoteVideoPlayerScreen> {
       controller.play();
     }).catchError((_) {
       if (!mounted) return;
-      setState(() => _error = 'Не удалось открыть видео');
+      setState(() => _error = context.readStrings.videoOpenFailed);
     });
     setState(() {});
   }
@@ -69,7 +70,9 @@ class _NoteVideoPlayerScreenState extends State<NoteVideoPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.video.title.isNotEmpty ? widget.video.title : 'Видео';
+    final title = widget.video.title.isNotEmpty
+        ? widget.video.title
+        : context.strings.video;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -201,7 +204,9 @@ class _VideoControlsState extends State<_VideoControls> {
                   color: Colors.white,
                   size: 34,
                 ),
-                tooltip: value.isPlaying ? 'Пауза' : 'Воспроизвести',
+                tooltip: value.isPlaying
+                    ? context.strings.pause
+                    : context.strings.play,
                 onPressed: () {
                   value.isPlaying
                       ? widget.controller.pause()

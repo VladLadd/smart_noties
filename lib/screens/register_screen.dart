@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -56,6 +57,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = context.strings;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -66,9 +69,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                const Text(
-                  'Создать\nаккаунт',
-                  style: TextStyle(
+                Text(
+                  strings.createAccount,
+                  style: const TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
                     fontFamily: 'Georgia',
@@ -77,60 +80,70 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Зарегистрируйтесь, чтобы начать',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  strings.registerSubtitle,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: scheme.onSurface.withValues(alpha: 0.68),
+                  ),
                 ),
                 const SizedBox(height: 48),
                 _buildField(
                   controller: _nameCtrl,
-                  label: 'Имя',
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Введите имя' : null,
+                  label: strings.name,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? strings.enterName
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _emailCtrl,
-                  label: 'Email',
+                  label: strings.email,
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Введите email';
-                    if (!v.contains('@')) return 'Некорректный email';
+                    if (v == null || v.trim().isEmpty) {
+                      return strings.enterEmail;
+                    }
+                    if (!v.contains('@')) return strings.invalidEmail;
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _phoneCtrl,
-                  label: 'Телефон',
+                  label: strings.phone,
                   keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _passwordCtrl,
-                  label: 'Пароль',
+                  label: strings.password,
                   obscure: _obscure,
                   validator: (v) {
-                    if (v == null || v.isEmpty) return 'Введите пароль';
-                    if (v.length < 6) return 'Минимум 6 символов';
+                    if (v == null || v.isEmpty) return strings.enterPassword;
+                    if (v.length < 6) return strings.minSixChars;
                     return null;
                   },
                   suffix: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+                    icon: Icon(
+                        _obscure ? Icons.visibility_off : Icons.visibility),
                     onPressed: () => setState(() => _obscure = !_obscure),
                   ),
                 ),
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _confirmCtrl,
-                  label: 'Подтвердите пароль',
+                  label: strings.confirmPassword,
                   obscure: _obscureConfirm,
                   validator: (v) {
-                    if (v != _passwordCtrl.text) return 'Пароли не совпадают';
+                    if (v != _passwordCtrl.text) {
+                      return strings.passwordsDoNotMatch;
+                    }
                     return null;
                   },
                   suffix: IconButton(
-                    icon: Icon(
-                        _obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                    icon: Icon(_obscureConfirm
+                        ? Icons.visibility_off
+                        : Icons.visibility),
                     onPressed: () =>
                         setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
@@ -142,28 +155,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: ElevatedButton(
                     onPressed: _loading ? null : _submit,
                     child: _loading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: scheme.onPrimary,
                             ),
                           )
-                        : const Text('Создать аккаунт',
-                            style: TextStyle(fontSize: 16)),
+                        : Text(
+                            strings.createAccountButton,
+                            style: const TextStyle(fontSize: 16),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Уже есть аккаунт? ', style: TextStyle(color: Colors.grey[600])),
+                    Text(
+                      strings.alreadyHaveAccount,
+                      style: TextStyle(
+                        color: scheme.onSurface.withValues(alpha: 0.68),
+                      ),
+                    ),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: const Text(
-                        'Войти',
-                        style: TextStyle(
+                      child: Text(
+                        strings.signIn,
+                        style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           decoration: TextDecoration.underline,
                         ),
@@ -195,28 +215,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: InputDecoration(
         labelText: label,
         suffixIcon: suffix,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.black, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.red[400]!),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.red[400]!),
-        ),
       ),
     );
   }

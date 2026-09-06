@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:http/http.dart' as http;
 
+import '../providers/locale_provider.dart';
 import '../services/api_config.dart';
 
 /// Проигрыватель голосовой заметки: play/pause, перематываемый прогресс,
@@ -66,6 +67,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
 
   // Готовит локальный файл для воспроизведения (скачивает удалённый при нужде).
   Future<void> _prepareSource() async {
+    final strings = context.readStrings;
     if (_playablePath != null) return;
     if (!isRemoteMedia(widget.path)) {
       _playablePath = widget.path;
@@ -76,8 +78,8 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
       _error = null;
     });
     try {
-      final cache =
-          File('${Directory.systemTemp.path}/voice_cache_${widget.path.hashCode}.aac');
+      final cache = File(
+          '${Directory.systemTemp.path}/voice_cache_${widget.path.hashCode}.aac');
       if (!await cache.exists() || await cache.length() == 0) {
         final resp = await http
             .get(
@@ -92,7 +94,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
       }
       _playablePath = cache.path;
     } catch (_) {
-      _error = 'Не удалось загрузить аудио';
+      _error = strings.audioLoadFailed;
     } finally {
       if (mounted) setState(() => _preparing = false);
     }
@@ -183,8 +185,8 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                           trackHeight: 3,
                           thumbShape: const RoundSliderThumbShape(
                               enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 12),
+                          overlayShape:
+                              const RoundSliderOverlayShape(overlayRadius: 12),
                         ),
                         child: Slider(
                           value: fraction,
@@ -215,7 +217,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
               onPressed: widget.onDelete,
               color: Colors.red,
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'Удалить',
+              tooltip: context.strings.delete,
             ),
         ],
       ),
@@ -238,9 +240,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
       iconSize: 40,
       color: Colors.black,
       icon: Icon(
-        _player.isPlaying
-            ? Icons.pause_circle_filled
-            : Icons.play_circle_fill,
+        _player.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
       ),
     );
   }

@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/note_model.dart';
 import '../models/note_video_model.dart';
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 import '../providers/notes_provider.dart';
 import '../services/api_config.dart';
 import '../widgets/voice_message_player.dart';
@@ -88,7 +90,8 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
     final image = _imageProvider(note.imagePath, token, mediaPassword);
     final backgroundColor = note.color;
     final textColor = _contrastColor(backgroundColor);
-    final secondaryTextColor = textColor.withOpacity(0.78);
+    final secondaryTextColor = textColor.withValues(alpha: 0.78);
+    final strings = context.strings;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -98,22 +101,22 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
         foregroundColor: textColor,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, size: 28),
-          tooltip: 'Назад',
+          tooltip: strings.back,
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (note.hasProtection)
-            const Tooltip(
-              message: 'Защищённая заметка',
-              child: Padding(
+            Tooltip(
+              message: strings.protectedNote,
+              child: const Padding(
                 padding: EdgeInsets.only(right: 12),
                 child: Icon(Icons.lock, size: 20),
               ),
             ),
           if (note.isPending)
-            const Tooltip(
-              message: 'Не отправлено на сервер',
-              child: Padding(
+            Tooltip(
+              message: strings.notUploaded,
+              child: const Padding(
                 padding: EdgeInsets.only(right: 12),
                 child: Icon(Icons.cloud_off, size: 20, color: Colors.orange),
               ),
@@ -147,7 +150,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                 const SizedBox(height: 20),
               ],
               Text(
-                note.title.isNotEmpty ? note.title : 'Без заголовка',
+                note.title.isNotEmpty ? note.title : strings.noTitle,
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
@@ -156,16 +159,64 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                 ).copyWith(color: textColor),
               ),
               const SizedBox(height: 18),
-              Text(
-                note.body.isNotEmpty ? note.body : 'Нет текста',
-                style: TextStyle(
-                  fontSize: 17,
-                  height: 1.45,
-                  color: note.body.isNotEmpty
-                      ? textColor
-                      : secondaryTextColor,
+              if (note.body.isNotEmpty)
+                MarkdownBody(
+                  data: note.body,
+                  selectable: true,
+                  softLineBreak: true,
+                  styleSheet: MarkdownStyleSheet.fromTheme(
+                    Theme.of(context),
+                  ).copyWith(
+                    p: TextStyle(
+                      fontSize: 17,
+                      height: 1.45,
+                      color: textColor,
+                    ),
+                    h1: TextStyle(
+                      fontSize: 28,
+                      height: 1.18,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                    h2: TextStyle(
+                      fontSize: 24,
+                      height: 1.22,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                    h3: TextStyle(
+                      fontSize: 20,
+                      height: 1.26,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                    blockquote: TextStyle(
+                      fontSize: 17,
+                      height: 1.45,
+                      color: secondaryTextColor,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    code: TextStyle(
+                      color: textColor,
+                      backgroundColor: textColor.withValues(alpha: 0.10),
+                    ),
+                    listBullet: TextStyle(color: textColor),
+                    a: TextStyle(
+                      color: textColor,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  onTapLink: (_, href, __) => _openMarkdownLink(href),
+                )
+              else
+                Text(
+                  strings.noText,
+                  style: TextStyle(
+                    fontSize: 17,
+                    height: 1.45,
+                    color: secondaryTextColor,
+                  ),
                 ),
-              ),
               if (note.voicePath != null) ...[
                 const SizedBox(height: 24),
                 VoiceMessagePlayer(
@@ -230,9 +281,9 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Видео',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        Text(
+          context.strings.video,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
         GridView.builder(
@@ -291,20 +342,32 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
     }
   }
 
+  Future<void> _openMarkdownLink(String? href) async {
+    if (href == null || href.trim().isEmpty) return;
+    final uri = Uri.tryParse(href.trim());
+    if (uri == null || !uri.hasScheme) return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
   void _showVideoLink(NoteVideo video) {
+    final strings = context.readStrings;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(video.title.isNotEmpty ? video.title : 'Видео'),
+        title: Text(
+          video.title.isNotEmpty ? video.title : strings.video,
+        ),
         content: SelectableText(
           video.sourceUrl.isNotEmpty
               ? video.sourceUrl
-              : 'Ссылка на видео недоступна',
+              : strings.videoLinkUnavailable,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Закрыть'),
+            child: Text(strings.close),
           ),
         ],
       ),
@@ -332,6 +395,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
   }
 
   Widget _buildLockedScreen() {
+    final strings = context.strings;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -348,9 +412,9 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
               const Spacer(),
               const Icon(Icons.lock, size: 48),
               const SizedBox(height: 16),
-              const Text(
-                'Защищённая заметка',
-                style: TextStyle(
+              Text(
+                strings.protectedNote,
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'Georgia',
@@ -358,7 +422,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Введите пароль, чтобы прочитать заметку.',
+                strings.enterPasswordToReadNote,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[700]),
               ),
@@ -366,7 +430,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
               ElevatedButton.icon(
                 onPressed: _requestUnlock,
                 icon: const Icon(Icons.lock_open),
-                label: const Text('Ввести пароль'),
+                label: Text(strings.enterPasswordButton),
               ),
               const Spacer(),
             ],
@@ -442,7 +506,9 @@ class _VideoViewTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    video.title.isNotEmpty ? video.title : 'Видео',
+                    video.title.isNotEmpty
+                        ? video.title
+                        : context.strings.video,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -461,7 +527,8 @@ class _VideoViewTile extends StatelessWidget {
               ),
             ),
             const Center(
-              child: Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
+              child:
+                  Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
             ),
           ],
         ),
@@ -571,7 +638,7 @@ class _FullscreenImageGalleryState extends State<_FullscreenImageGallery> {
               left: 8,
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
-                tooltip: 'Назад',
+                tooltip: context.strings.back,
                 onPressed: () => Navigator.pop(context),
               ),
             ),
@@ -586,7 +653,7 @@ class _FullscreenImageGalleryState extends State<_FullscreenImageGallery> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.56),
+                    color: Colors.black.withValues(alpha: 0.56),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -651,18 +718,18 @@ class _ProtectedViewPasswordDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Защищённая заметка'),
+      title: Text(context.strings.protectedNote),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Для чтения этой заметки введите пароль.'),
+          Text(context.strings.enterPasswordToReadNote),
           const SizedBox(height: 16),
           TextField(
             controller: _passwordCtrl,
             obscureText: _obscure,
             autofocus: true,
             decoration: InputDecoration(
-              labelText: 'Пароль',
+              labelText: context.strings.password,
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscure ? Icons.visibility_off : Icons.visibility,
@@ -677,11 +744,11 @@ class _ProtectedViewPasswordDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(context.strings.cancel),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, _passwordCtrl.text),
-          child: const Text('Открыть'),
+          child: Text(context.strings.open),
         ),
       ],
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final String initialEmail;
@@ -48,7 +49,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Пароль обновлён')),
+        SnackBar(content: Text(context.readStrings.passwordUpdated)),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -63,6 +64,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = context.strings;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -79,9 +82,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   alignment: Alignment.centerLeft,
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Сброс\nпароля',
-                  style: TextStyle(
+                Text(
+                  strings.resetPasswordTitle,
+                  style: const TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
                     fontFamily: 'Georgia',
@@ -90,20 +93,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Введите email и новый пароль',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  strings.resetPasswordSubtitle,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: scheme.onSurface.withValues(alpha: 0.68),
+                  ),
                 ),
                 const SizedBox(height: 48),
                 _buildField(
                   controller: _emailCtrl,
-                  label: 'Email',
+                  label: strings.email,
                   keyboardType: TextInputType.emailAddress,
                   validator: _validateEmail,
                 ),
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _passwordCtrl,
-                  label: 'Новый пароль',
+                  label: strings.newPassword,
                   obscure: _obscure,
                   validator: _validatePassword,
                   suffix: IconButton(
@@ -116,10 +122,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _confirmCtrl,
-                  label: 'Подтвердите пароль',
+                  label: strings.confirmPassword,
                   obscure: _obscureConfirm,
                   validator: (v) {
-                    if (v != _passwordCtrl.text) return 'Пароли не совпадают';
+                    if (v != _passwordCtrl.text) {
+                      return strings.passwordsDoNotMatch;
+                    }
                     return null;
                   },
                   suffix: IconButton(
@@ -137,17 +145,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   child: ElevatedButton(
                     onPressed: _loading ? null : _submit,
                     child: _loading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: scheme.onPrimary,
                             ),
                           )
-                        : const Text(
-                            'Обновить пароль',
-                            style: TextStyle(fontSize: 16),
+                        : Text(
+                            strings.updatePassword,
+                            style: const TextStyle(fontSize: 16),
                           ),
                   ),
                 ),
@@ -160,14 +168,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   String? _validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Введите email';
-    if (!v.contains('@')) return 'Некорректный email';
+    final strings = context.readStrings;
+    if (v == null || v.trim().isEmpty) return strings.enterEmail;
+    if (!v.contains('@')) return strings.invalidEmail;
     return null;
   }
 
   String? _validatePassword(String? v) {
-    if (v == null || v.isEmpty) return 'Введите новый пароль';
-    if (v.length < 6) return 'Минимум 6 символов';
+    final strings = context.readStrings;
+    if (v == null || v.isEmpty) return strings.enterNewPassword;
+    if (v.length < 6) return strings.minSixChars;
     return null;
   }
 
@@ -187,28 +197,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       decoration: InputDecoration(
         labelText: label,
         suffixIcon: suffix,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.black, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.red[400]!),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.red[400]!),
-        ),
       ),
     );
   }

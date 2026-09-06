@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Запись голосовых заметок (flutter_sound) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Чтение NFC-метки для показа скрытых заметок -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <application
         android:label="smart_noties"
         android:name="${applicationName}"

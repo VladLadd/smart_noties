@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -8,8 +9,10 @@ import 'note_view_screen.dart';
 import 'profile_screen.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 import '../models/note_model.dart';
 import '../services/api_config.dart';
+import '../services/nfc_reader_service.dart';
 
 class NotesGridScreen extends StatefulWidget {
   const NotesGridScreen({super.key});
@@ -19,7 +22,15 @@ class NotesGridScreen extends StatefulWidget {
 }
 
 class _NotesGridScreenState extends State<NotesGridScreen> {
+  final _nfcReader = NfcReaderService();
   bool _showGrid = true;
+  bool _readingNfc = false;
+
+  @override
+  void dispose() {
+    _nfcReader.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +53,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
 
   Widget _buildNotes() {
     final notes = context.watch<NotesProvider>().notes;
+    if (notes.isEmpty) return _buildEmptyState();
 
     if (!_showGrid) {
       return ListView.separated(
@@ -61,6 +73,44 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     }
 
     return _buildMasonryGrid(notes);
+  }
+
+  Widget _buildEmptyState() {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = context.strings;
+    return Padding(
+      padding: const EdgeInsets.only(top: 80, left: 24, right: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            strings.noNotesTitle,
+            style: const TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Georgia',
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            strings.noNotesSubtitle,
+            style: TextStyle(
+              fontSize: 18,
+              color: scheme.onSurface.withValues(alpha: 0.68),
+            ),
+          ),
+          const Spacer(),
+          const Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: EdgeInsets.only(right: 28, bottom: 40),
+              child: Icon(Icons.arrow_downward, size: 48),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildMasonryGrid(List<Note> notes) {
@@ -126,20 +176,25 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   Future<void> _openNote(Note note) async {
+    final notesProvider = context.read<NotesProvider>();
+    final authToken = context.read<AuthProvider>().token;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     var noteToOpen = note;
     if (note.hasProtection) {
       final password = await _showProtectedNoteDialog();
       if (password == null) return;
+      if (!mounted) return;
 
       try {
-        noteToOpen = await context.read<NotesProvider>().verifyNotePassword(
-              note,
-              password: password,
-              token: context.read<AuthProvider>().token,
-            );
+        noteToOpen = await notesProvider.verifyNotePassword(
+          note,
+          password: password,
+          token: authToken,
+        );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
         );
         return;
@@ -147,8 +202,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     }
 
     if (!mounted) return;
-    Navigator.push(
-      context,
+    navigator.push(
       MaterialPageRoute(
         builder: (_) => NoteViewScreen(
           note: noteToOpen,
@@ -166,6 +220,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   void _showNoteActions(Note note) {
+    final strings = context.readStrings;
     showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(
@@ -174,7 +229,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Редактировать'),
+              title: Text(strings.edit),
               onTap: () {
                 Navigator.pop(sheetContext);
                 Navigator.push(
@@ -187,9 +242,9 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text(
-                'Удалить',
-                style: TextStyle(color: Colors.red),
+              title: Text(
+                strings.delete,
+                style: const TextStyle(color: Colors.red),
               ),
               onTap: () {
                 Navigator.pop(sheetContext);
@@ -203,17 +258,18 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   }
 
   void _showDeleteDialog(Note note) {
+    final strings = context.readStrings;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Удалить заметку?'),
+        title: Text(strings.deleteNoteQuestion),
         content: Text(
-          note.title.isNotEmpty ? '«${note.title}»' : 'Заметка будет удалена.',
+          note.title.isNotEmpty ? '«${note.title}»' : strings.noteWillBeDeleted,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
+            child: Text(strings.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -230,7 +286,10 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                 );
               });
             },
-            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+            child: Text(
+              strings.delete,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -239,11 +298,12 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
 
   Widget _buildNoteTile(Note note) {
     final imageProvider = _noteImageProvider(note);
+    final strings = context.strings;
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: note.color.withOpacity(0.85),
+        color: note.color.withValues(alpha: 0.85),
         image: imageProvider != null
             ? DecorationImage(image: imageProvider, fit: BoxFit.cover)
             : null,
@@ -252,16 +312,16 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       child: Stack(
         children: [
           if (note.hasProtection)
-            const Center(
+            Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock, size: 32),
-                  SizedBox(height: 8),
+                  const Icon(Icons.lock, size: 32),
+                  const SizedBox(height: 8),
                   Text(
-                    'Защищённая\nзаметка',
+                    strings.protectedNoteMultiline,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
@@ -273,9 +333,9 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
             Positioned(
               top: 0,
               right: note.isPending ? 24 : 0,
-              child: const Tooltip(
-                message: 'Защищённая заметка',
-                child: Icon(Icons.lock, size: 18),
+              child: Tooltip(
+                message: strings.protectedNote,
+                child: const Icon(Icons.lock, size: 18),
               ),
             ),
           if (!note.hasProtection && note.title.isNotEmpty)
@@ -292,7 +352,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  note.body,
+                  _plainTextPreview(note.body),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
@@ -300,12 +360,16 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
               ],
             ),
           if (note.isPending)
-            const Positioned(
+            Positioned(
               top: 0,
               right: 0,
               child: Tooltip(
-                message: 'Не отправлено на сервер',
-                child: Icon(Icons.cloud_off, size: 18, color: Colors.orange),
+                message: strings.notUploaded,
+                child: const Icon(
+                  Icons.cloud_off,
+                  size: 18,
+                  color: Colors.orange,
+                ),
               ),
             ),
           if (!note.hasProtection && (note.isVoice || note.isVideo))
@@ -321,16 +385,19 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
 
   Widget _buildNoteRow(Note note) {
     final imageProvider = _noteImageProvider(note);
+    final strings = context.strings;
     final title = note.hasProtection
-        ? 'Защищённая заметка'
-        : (note.title.isNotEmpty ? note.title : 'Без заголовка');
-    final body = note.hasProtection ? 'Введите пароль для просмотра' : note.body;
+        ? strings.protectedNote
+        : (note.title.isNotEmpty ? note.title : strings.noTitle);
+    final body = note.hasProtection
+        ? strings.enterPasswordToView
+        : _plainTextPreview(note.body);
 
     return Container(
       height: 92,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: note.color.withOpacity(0.85),
+        color: note.color.withValues(alpha: 0.85),
       ),
       padding: const EdgeInsets.all(10),
       child: Row(
@@ -340,7 +407,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
             child: Container(
               width: 72,
               height: 72,
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               child: imageProvider != null
                   ? Image(image: imageProvider, fit: BoxFit.cover)
                   : Icon(
@@ -373,16 +440,16 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                     ),
                     if (note.hasProtection) ...[
                       const SizedBox(width: 8),
-                      const Tooltip(
-                        message: 'Защищённая заметка',
-                        child: Icon(Icons.lock, size: 18),
+                      Tooltip(
+                        message: strings.protectedNote,
+                        child: const Icon(Icons.lock, size: 18),
                       ),
                     ],
                     if (note.isPending) ...[
                       const SizedBox(width: 8),
-                      const Tooltip(
-                        message: 'Не отправлено на сервер',
-                        child: Icon(
+                      Tooltip(
+                        message: strings.notUploaded,
+                        child: const Icon(
                           Icons.cloud_off,
                           size: 18,
                           color: Colors.orange,
@@ -393,12 +460,12 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  body.isNotEmpty ? body : 'Нет текста',
+                  body.isNotEmpty ? body : strings.noText,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.black.withOpacity(0.62),
+                    color: Colors.black.withValues(alpha: 0.62),
                   ),
                 ),
               ],
@@ -433,28 +500,107 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     return FileImage(File(path));
   }
 
+  String _plainTextPreview(String markdown) {
+    return markdown
+        .replaceAll(RegExp(r'!\[[^\]]*\]\([^)]+\)'), '')
+        .replaceAllMapped(
+          RegExp(r'\[([^\]]+)\]\([^)]+\)'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAll(RegExp(r'[*_`>#-]'), '')
+        .replaceAll(RegExp(r'\[[ xX]\]'), '')
+        .trim();
+  }
+
   Widget _buildBottomBar() {
+    final notesProvider = context.watch<NotesProvider>();
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, top: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _BottomNavButton(
-            label: 'ПРОФИЛЬ',
+            label: context.strings.profile.toUpperCase(),
             icon: Icons.person,
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ProfileScreen()),
             ),
           ),
+          _HiddenNotesButton(
+            active: notesProvider.isHiddenNotesVisible,
+            loading: _readingNfc || notesProvider.unlockingHiddenNotes,
+            remaining: notesProvider.hiddenSessionRemaining,
+            onPressed: _toggleHiddenNotes,
+          ),
           IconButton(
-            tooltip: _showGrid ? 'Показать списком' : 'Показать плитками',
+            tooltip:
+                _showGrid ? context.strings.showList : context.strings.showGrid,
             icon: Icon(_showGrid ? Icons.view_list : Icons.grid_view),
             onPressed: () => setState(() => _showGrid = !_showGrid),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _toggleHiddenNotes() async {
+    if (_readingNfc) return;
+
+    final notesProvider = context.read<NotesProvider>();
+    final token = context.read<AuthProvider>().token;
+
+    if (notesProvider.isHiddenNotesVisible) {
+      await notesProvider.lockHiddenNotes(token: token);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.readStrings.hiddenNotesHidden)),
+      );
+      return;
+    }
+
+    var dialogOpen = true;
+    setState(() => _readingNfc = true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return _NfcWaitingDialog(
+            onCancel: () {
+              _nfcReader.cancel();
+              Navigator.pop(dialogContext);
+            },
+          );
+        },
+      ).whenComplete(() => dialogOpen = false),
+    );
+
+    try {
+      await Future<void>.delayed(Duration.zero);
+      final payload = await _nfcReader.readUnlockPayload();
+      if (!mounted) return;
+      if (dialogOpen) Navigator.of(context, rootNavigator: true).pop();
+
+      await notesProvider.unlockHiddenNotes(
+        payload: payload,
+        token: token,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.readStrings.hiddenNotesOpened)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      if (dialogOpen) Navigator.of(context, rootNavigator: true).pop();
+      if (!e.toString().contains('Сканирование отменено')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _readingNfc = false);
+    }
   }
 
   Widget _buildFabMenu() {
@@ -543,6 +689,79 @@ class _BottomNavButton extends StatelessWidget {
   }
 }
 
+class _HiddenNotesButton extends StatelessWidget {
+  final bool active;
+  final bool loading;
+  final Duration remaining;
+  final VoidCallback onPressed;
+
+  const _HiddenNotesButton({
+    required this.active,
+    required this.loading,
+    required this.remaining,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tooltip = active
+        ? context.strings.hideHiddenWithRemaining(_formatRemaining(remaining))
+        : context.strings.showHiddenByNfc;
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: loading ? null : onPressed,
+      icon: loading
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(active ? Icons.visibility : Icons.visibility_off),
+    );
+  }
+
+  String _formatRemaining(Duration value) {
+    if (value <= Duration.zero) return '0:00';
+    final minutes = value.inMinutes;
+    final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+}
+
+class _NfcWaitingDialog extends StatelessWidget {
+  final VoidCallback onCancel;
+
+  const _NfcWaitingDialog({required this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.strings.nfcWaitingTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 38,
+            height: 38,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            context.strings.nfcWaitingMessage,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: onCancel,
+          child: Text(context.strings.cancel),
+        ),
+      ],
+    );
+  }
+}
+
 class _ProtectedNotePasswordDialog extends StatefulWidget {
   const _ProtectedNotePasswordDialog();
 
@@ -565,18 +784,18 @@ class _ProtectedNotePasswordDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Защищённая заметка'),
+      title: Text(context.strings.protectedNote),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Для чтения этой заметки введите пароль.'),
+          Text(context.strings.enterPasswordToReadNote),
           const SizedBox(height: 16),
           TextField(
             controller: _passwordCtrl,
             obscureText: _obscure,
             autofocus: true,
             decoration: InputDecoration(
-              labelText: 'Пароль',
+              labelText: context.strings.password,
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscure ? Icons.visibility_off : Icons.visibility,
@@ -591,11 +810,11 @@ class _ProtectedNotePasswordDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(context.strings.cancel),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, _passwordCtrl.text),
-          child: const Text('Открыть'),
+          child: Text(context.strings.open),
         ),
       ],
     );

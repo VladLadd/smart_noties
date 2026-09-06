@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 
 class SMSCodeScreen extends StatefulWidget {
   final String phone;
@@ -27,7 +28,7 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
   Future<void> _verify() async {
     final code = _codeCtrl.text.trim();
     if (code.length != 6) {
-      _showError('Введите 6-значный код');
+      _showError(context.readStrings.enterSixDigitCode);
       return;
     }
 
@@ -53,7 +54,7 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
       await context.read<AuthProvider>().requestPhoneCode(phone: widget.phone);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Код отправлен повторно')),
+        SnackBar(content: Text(context.readStrings.codeSentAgain)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -71,6 +72,8 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = context.strings;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -83,9 +86,9 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
                 onPressed: _loading ? null : () => Navigator.pop(context),
               ),
               const SizedBox(height: 32),
-              const Text(
-                'Введите\nкод из SMS',
-                style: TextStyle(
+              Text(
+                strings.smsCodeTitle,
+                style: const TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
                   fontFamily: 'Georgia',
@@ -94,8 +97,11 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Код отправлен на ${widget.phone}',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                strings.smsCodeSent(widget.phone),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: scheme.onSurface.withValues(alpha: 0.68),
+                ),
               ),
               const SizedBox(height: 40),
               TextField(
@@ -115,21 +121,7 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
                 ),
                 decoration: InputDecoration(
                   counterText: '',
-                  labelText: 'SMS-код',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Colors.black, width: 1.5),
-                  ),
+                  labelText: strings.smsCode,
                 ),
                 onSubmitted: (_) {
                   if (!_loading) _verify();
@@ -142,15 +134,15 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
                 child: ElevatedButton(
                   onPressed: _loading ? null : _verify,
                   child: _loading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: scheme.onPrimary,
                           ),
                         )
-                      : const Text('Подтвердить'),
+                      : Text(strings.confirm),
                 ),
               ),
               const SizedBox(height: 16),
@@ -158,7 +150,7 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
                 child: TextButton(
                   onPressed: _resending || _loading ? null : _resend,
                   child: Text(
-                    _resending ? 'Отправляем...' : 'Отправить код ещё раз',
+                    _resending ? strings.sending : strings.resendCode,
                   ),
                 ),
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 import 'sms_code_screen.dart';
@@ -61,6 +62,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = context.strings;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -71,9 +74,9 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                const Text(
-                  'Добро\nпожаловать',
-                  style: TextStyle(
+                Text(
+                  strings.welcome,
+                  style: const TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
                     fontFamily: 'Georgia',
@@ -82,8 +85,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Войдите в свой аккаунт',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  strings.signInSubtitle,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: scheme.onSurface.withValues(alpha: 0.68),
+                  ),
                 ),
                 const SizedBox(height: 48),
                 _buildModeSwitch(),
@@ -98,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   _AuthField(
                     controller: _passwordCtrl,
-                    label: 'Пароль',
+                    label: strings.password,
                     obscure: _obscure,
                     validator: _validatePassword,
                     suffix: IconButton(
@@ -120,9 +126,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-                      child: const Text(
-                        'Забыли пароль?',
-                        style: TextStyle(
+                      child: Text(
+                        strings.forgotPassword,
+                        style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           decoration: TextDecoration.underline,
                         ),
@@ -132,14 +138,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 ] else ...[
                   _AuthField(
                     controller: _phoneCtrl,
-                    label: 'Номер телефона',
+                    label: strings.phoneNumber,
                     keyboardType: TextInputType.phone,
                     validator: _validatePhone,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Мы отправим SMS-код для входа. В dev-режиме код выводится в лог backend.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    strings.phoneCodeHelp,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: scheme.onSurface.withValues(alpha: 0.62),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 32),
@@ -149,16 +158,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: ElevatedButton(
                     onPressed: _loading ? null : _submit,
                     child: _loading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: scheme.onPrimary,
                             ),
                           )
                         : Text(
-                            _mode == _LoginMode.email ? 'Войти' : 'Получить код',
+                            _mode == _LoginMode.email
+                                ? strings.signIn
+                                : strings.getCode,
                             style: const TextStyle(fontSize: 16),
                           ),
                   ),
@@ -167,15 +178,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Нет аккаунта? ', style: TextStyle(color: Colors.grey[600])),
+                    Text(
+                      strings.noAccount,
+                      style: TextStyle(
+                        color: scheme.onSurface.withValues(alpha: 0.68),
+                      ),
+                    ),
                     GestureDetector(
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                        MaterialPageRoute(
+                            builder: (_) => const RegisterScreen()),
                       ),
-                      child: const Text(
-                        'Зарегистрироваться',
-                        style: TextStyle(
+                      child: Text(
+                        strings.register,
+                        style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           decoration: TextDecoration.underline,
                         ),
@@ -192,23 +209,25 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildModeSwitch() {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = context.strings;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.grey[200],
+        color: scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           _ModeButton(
-            label: 'Email',
+            label: strings.email,
             selected: _mode == _LoginMode.email,
             onTap: _loading
                 ? null
                 : () => setState(() => _mode = _LoginMode.email),
           ),
           _ModeButton(
-            label: 'Телефон',
+            label: strings.phone,
             selected: _mode == _LoginMode.phone,
             onTap: _loading
                 ? null
@@ -220,21 +239,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String? _validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Введите email';
-    if (!v.contains('@')) return 'Некорректный email';
+    final strings = context.readStrings;
+    if (v == null || v.trim().isEmpty) return strings.enterEmail;
+    if (!v.contains('@')) return strings.invalidEmail;
     return null;
   }
 
   String? _validatePassword(String? v) {
-    if (v == null || v.isEmpty) return 'Введите пароль';
+    if (v == null || v.isEmpty) return context.readStrings.enterPassword;
     return null;
   }
 
   String? _validatePhone(String? v) {
+    final strings = context.readStrings;
     final digits = (v ?? '').replaceAll(RegExp(r'\D'), '');
-    if (digits.isEmpty) return 'Введите номер телефона';
+    if (digits.isEmpty) return strings.enterPhoneNumber;
     if (digits.length < 10 || digits.length > 15) {
-      return 'Некорректный номер телефона';
+      return strings.invalidPhoneNumber;
     }
     return null;
   }
@@ -253,6 +274,7 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -261,12 +283,15 @@ class _ModeButton extends StatelessWidget {
           height: 44,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
+            color: selected ? scheme.surface : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(
+                        alpha:
+                            scheme.brightness == Brightness.dark ? 0.28 : 0.08,
+                      ),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -277,7 +302,9 @@ class _ModeButton extends StatelessWidget {
             label,
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: selected ? Colors.black : Colors.grey[700],
+              color: selected
+                  ? scheme.onSurface
+                  : scheme.onSurface.withValues(alpha: 0.68),
             ),
           ),
         ),
@@ -313,28 +340,6 @@ class _AuthField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         suffixIcon: suffix,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.black, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.red[400]!),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.red[400]!),
-        ),
       ),
     );
   }

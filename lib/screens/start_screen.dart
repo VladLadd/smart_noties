@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../providers/locale_provider.dart';
 import 'note_edit_screen.dart';
 import 'profile_screen.dart';
 
@@ -7,6 +8,8 @@ class StartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = context.strings;
     return Scaffold(
       body: SafeArea(
         child: Stack(
@@ -19,10 +22,10 @@ class StartScreen extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'У вас пока\nнет заметок',
-                          style: TextStyle(
+                          strings.noNotesTitle,
+                          style: const TextStyle(
                             fontSize: 36,
                             fontWeight: FontWeight.w800,
                             fontFamily: 'Georgia',
@@ -31,7 +34,7 @@ class StartScreen extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Профиль',
+                        tooltip: strings.profile,
                         onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -44,10 +47,10 @@ class StartScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Нажмите на плюсик,\nчтобы создать первую',
+                    strings.noNotesSubtitle,
                     style: TextStyle(
                       fontSize: 18,
-                      color: Colors.grey[700],
+                      color: scheme.onSurface.withValues(alpha: 0.68),
                     ),
                   ),
                 ],

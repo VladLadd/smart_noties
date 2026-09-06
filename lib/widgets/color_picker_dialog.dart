@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../providers/locale_provider.dart';
 
 /// Открывает диалог выбора произвольного цвета (HSV-пикер) и возвращает
 /// выбранный цвет, либо null, если пользователь отменил.
@@ -44,7 +45,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   Color get _color => _hsv.toColor();
 
   String get _hex =>
-      '#${_color.value.toRadixString(16).substring(2).toUpperCase()}';
+      '#${_color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
 
   // Обновление из слайдеров: правим цвет и синхронизируем поле HEX,
   // но не перезаписываем текст, пока пользователь сам печатает в нём.
@@ -80,11 +81,12 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   @override
   Widget build(BuildContext context) {
     const double width = 260;
+    final strings = context.strings;
 
     return AlertDialog(
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Выберите цвет'),
+      title: Text(strings.chooseColor),
       content: SizedBox(
         width: width,
         child: Column(
@@ -159,11 +161,11 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(strings.cancel),
         ),
         ElevatedButton(
           onPressed: () => Navigator.pop(context, _color),
-          child: const Text('Выбрать'),
+          child: Text(strings.select),
         ),
       ],
     );
