@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -6,12 +7,15 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/note_drawing_model.dart';
 import '../models/note_model.dart';
 import '../models/note_video_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/notes_provider.dart';
 import '../services/api_config.dart';
+import '../widgets/note_drawing_canvas.dart';
+import '../widgets/note_drawing_toolbar.dart';
 import '../widgets/voice_message_player.dart';
 import 'video_player_screen.dart';
 
@@ -32,11 +36,21 @@ class NoteViewScreen extends StatefulWidget {
 class _NoteViewScreenState extends State<NoteViewScreen> {
   late bool _isLocked;
   Note? _unlockedNote;
+  NoteDrawing _drawing = NoteDrawing.empty();
+  bool _isDrawingMode = false;
+  bool _drawingDirty = false;
+  bool _savingDrawing = false;
+  DrawingTool _drawingTool = DrawingTool.pen;
+  Color _drawingColor = Colors.black;
+  double _drawingWidth = 0.012;
+  final List<NoteDrawing> _drawingUndoStack = [];
+  final List<NoteDrawing> _drawingRedoStack = [];
 
   @override
   void initState() {
     super.initState();
     _isLocked = widget.note.hasProtection && !widget.initiallyUnlocked;
+    _drawing = NoteDrawing.decode(widget.note.drawingData);
     if (_isLocked) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _requestUnlock());
     }
@@ -66,6 +80,10 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
       if (!mounted) return;
       setState(() {
         _unlockedNote = unlocked;
+        _drawing = NoteDrawing.decode(unlocked.drawingData);
+        _drawingUndoStack.clear();
+        _drawingRedoStack.clear();
+        _drawingDirty = false;
         _isLocked = false;
       });
     } catch (e) {
@@ -102,9 +120,33 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, size: 28),
           tooltip: strings.back,
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isDrawingMode
+              ? () => unawaited(_saveDrawingAndClose())
+              : () => Navigator.pop(context),
         ),
         actions: [
+          IconButton(
+            icon: _savingDrawing
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: textColor,
+                    ),
+                  )
+                : Icon(_isDrawingMode ? Icons.check : Icons.brush_outlined),
+            tooltip: _isDrawingMode ? strings.save : strings.drawOnNote,
+            onPressed: _savingDrawing
+                ? null
+                : () {
+                    if (_isDrawingMode) {
+                      unawaited(_saveDrawingAndClose());
+                    } else {
+                      _enterDrawingMode();
+                    }
+                  },
+          ),
           if (note.hasProtection)
             Tooltip(
               message: strings.protectedNote,
@@ -124,157 +166,312 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (image != null) ...[
-                GestureDetector(
-                  onTap: () => _openImageGallery(
-                    imagePaths,
-                    0,
-                    token,
-                    mediaPassword,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image(
-                      image: image,
-                      width: double.infinity,
-                      height: 220,
-                      fit: BoxFit.cover,
+        child: Column(
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: _isDrawingMode
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Stack(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (image != null) ...[
+                                  GestureDetector(
+                                    onTap: _isDrawingMode
+                                        ? null
+                                        : () => _openImageGallery(
+                                              imagePaths,
+                                              0,
+                                              token,
+                                              mediaPassword,
+                                            ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image(
+                                        image: image,
+                                        width: double.infinity,
+                                        height: 220,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                ],
+                                Text(
+                                  note.title.isNotEmpty
+                                      ? note.title
+                                      : strings.noTitle,
+                                  style: const TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Georgia',
+                                    height: 1.15,
+                                  ).copyWith(color: textColor),
+                                ),
+                                const SizedBox(height: 18),
+                                if (note.body.isNotEmpty)
+                                  MarkdownBody(
+                                    data: note.body,
+                                    selectable: !_isDrawingMode,
+                                    softLineBreak: true,
+                                    styleSheet: MarkdownStyleSheet.fromTheme(
+                                      Theme.of(context),
+                                    ).copyWith(
+                                      p: TextStyle(
+                                        fontSize: 17,
+                                        height: 1.45,
+                                        color: textColor,
+                                      ),
+                                      h1: TextStyle(
+                                        fontSize: 28,
+                                        height: 1.18,
+                                        fontWeight: FontWeight.w800,
+                                        color: textColor,
+                                      ),
+                                      h2: TextStyle(
+                                        fontSize: 24,
+                                        height: 1.22,
+                                        fontWeight: FontWeight.w800,
+                                        color: textColor,
+                                      ),
+                                      h3: TextStyle(
+                                        fontSize: 20,
+                                        height: 1.26,
+                                        fontWeight: FontWeight.w700,
+                                        color: textColor,
+                                      ),
+                                      blockquote: TextStyle(
+                                        fontSize: 17,
+                                        height: 1.45,
+                                        color: secondaryTextColor,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                      code: TextStyle(
+                                        color: textColor,
+                                        backgroundColor:
+                                            textColor.withValues(alpha: 0.10),
+                                      ),
+                                      listBullet: TextStyle(color: textColor),
+                                      a: TextStyle(
+                                        color: textColor,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                    onTapLink: (_, href, __) => _isDrawingMode
+                                        ? null
+                                        : _openMarkdownLink(href),
+                                  )
+                                else
+                                  Text(
+                                    strings.noText,
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      height: 1.45,
+                                      color: secondaryTextColor,
+                                    ),
+                                  ),
+                                if (note.voicePath != null) ...[
+                                  const SizedBox(height: 24),
+                                  VoiceMessagePlayer(
+                                    path: note.voicePath!,
+                                    token: token,
+                                    mediaPassword: mediaPassword,
+                                  ),
+                                ],
+                                if (note.photoPaths.isNotEmpty) ...[
+                                  const SizedBox(height: 24),
+                                  GridView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: note.photoPaths.length,
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 3,
+                                      crossAxisSpacing: 10,
+                                      mainAxisSpacing: 10,
+                                      childAspectRatio: 1,
+                                    ),
+                                    itemBuilder: (context, index) {
+                                      final provider = _imageProvider(
+                                        note.photoPaths[index],
+                                        token,
+                                        mediaPassword,
+                                      );
+                                      if (provider == null) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final galleryIndex =
+                                          note.imagePath == null ||
+                                                  note.imagePath!.isEmpty
+                                              ? index
+                                              : index + 1;
+                                      return GestureDetector(
+                                        onTap: _isDrawingMode
+                                            ? null
+                                            : () => _openImageGallery(
+                                                  imagePaths,
+                                                  galleryIndex,
+                                                  token,
+                                                  mediaPassword,
+                                                ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Image(
+                                            image: provider,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                                if (note.videos.isNotEmpty) ...[
+                                  const SizedBox(height: 24),
+                                  _buildVideoGrid(note.videos),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: NoteDrawingCanvas(
+                              drawing: _drawing,
+                              readOnly: !_isDrawingMode,
+                              tool: _drawingTool,
+                              strokeColor: _drawingColor,
+                              strokeWidth: _drawingWidth,
+                              onChangeStart: _rememberDrawingForUndo,
+                              onChanged: _replaceDrawing,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-              Text(
-                note.title.isNotEmpty ? note.title : strings.noTitle,
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Georgia',
-                  height: 1.15,
-                ).copyWith(color: textColor),
+                  );
+                },
               ),
-              const SizedBox(height: 18),
-              if (note.body.isNotEmpty)
-                MarkdownBody(
-                  data: note.body,
-                  selectable: true,
-                  softLineBreak: true,
-                  styleSheet: MarkdownStyleSheet.fromTheme(
-                    Theme.of(context),
-                  ).copyWith(
-                    p: TextStyle(
-                      fontSize: 17,
-                      height: 1.45,
-                      color: textColor,
-                    ),
-                    h1: TextStyle(
-                      fontSize: 28,
-                      height: 1.18,
-                      fontWeight: FontWeight.w800,
-                      color: textColor,
-                    ),
-                    h2: TextStyle(
-                      fontSize: 24,
-                      height: 1.22,
-                      fontWeight: FontWeight.w800,
-                      color: textColor,
-                    ),
-                    h3: TextStyle(
-                      fontSize: 20,
-                      height: 1.26,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
-                    ),
-                    blockquote: TextStyle(
-                      fontSize: 17,
-                      height: 1.45,
-                      color: secondaryTextColor,
-                      fontStyle: FontStyle.italic,
-                    ),
-                    code: TextStyle(
-                      color: textColor,
-                      backgroundColor: textColor.withValues(alpha: 0.10),
-                    ),
-                    listBullet: TextStyle(color: textColor),
-                    a: TextStyle(
-                      color: textColor,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                  onTapLink: (_, href, __) => _openMarkdownLink(href),
-                )
-              else
-                Text(
-                  strings.noText,
-                  style: TextStyle(
-                    fontSize: 17,
-                    height: 1.45,
-                    color: secondaryTextColor,
-                  ),
-                ),
-              if (note.voicePath != null) ...[
-                const SizedBox(height: 24),
-                VoiceMessagePlayer(
-                  path: note.voicePath!,
-                  token: token,
-                  mediaPassword: mediaPassword,
-                ),
-              ],
-              if (note.photoPaths.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: note.photoPaths.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 1,
-                  ),
-                  itemBuilder: (context, index) {
-                    final provider = _imageProvider(
-                      note.photoPaths[index],
-                      token,
-                      mediaPassword,
-                    );
-                    if (provider == null) return const SizedBox.shrink();
-                    final galleryIndex =
-                        note.imagePath == null || note.imagePath!.isEmpty
-                            ? index
-                            : index + 1;
-                    return GestureDetector(
-                      onTap: () => _openImageGallery(
-                        imagePaths,
-                        galleryIndex,
-                        token,
-                        mediaPassword,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image(
-                          image: provider,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-              if (note.videos.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                _buildVideoGrid(note.videos),
-              ],
-            ],
-          ),
+            ),
+            if (_isDrawingMode) _buildDrawingToolbar(),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildDrawingToolbar() {
+    return NoteDrawingToolbar(
+      selectedTool: _drawingTool,
+      selectedColor: _drawingColor,
+      selectedWidth: _drawingWidth,
+      canUndo: _drawingUndoStack.isNotEmpty,
+      canRedo: _drawingRedoStack.isNotEmpty,
+      canClear: _drawing.hasContent,
+      onToolSelected: (tool) => setState(() => _drawingTool = tool),
+      onColorSelected: (color) => setState(() {
+        _drawingColor = color;
+        _drawingTool = DrawingTool.pen;
+      }),
+      onWidthChanged: (width) => setState(() => _drawingWidth = width),
+      onUndo: _undoDrawing,
+      onRedo: _redoDrawing,
+      onClear: _clearDrawing,
+      onClose: () => unawaited(_saveDrawingAndClose()),
+    );
+  }
+
+  void _enterDrawingMode() {
+    setState(() => _isDrawingMode = true);
+  }
+
+  Future<void> _saveDrawingAndClose() async {
+    if (_savingDrawing) return;
+    if (!_drawingDirty) {
+      setState(() => _isDrawingMode = false);
+      return;
+    }
+
+    final current = _unlockedNote ?? widget.note;
+    final drawingData = _drawing.hasContent ? _drawing.encode() : null;
+    final updated = current.copyWith(
+      drawingData: drawingData,
+      clearDrawingData: drawingData == null,
+    );
+
+    setState(() => _savingDrawing = true);
+    try {
+      await context.read<NotesProvider>().updateNote(
+            updated,
+            token: context.read<AuthProvider>().token,
+          );
+      if (!mounted) return;
+      setState(() {
+        _unlockedNote = updated;
+        _isDrawingMode = false;
+        _drawingDirty = false;
+        _savingDrawing = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _savingDrawing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+      );
+    }
+  }
+
+  void _rememberDrawingForUndo() {
+    if (_drawingUndoStack.isNotEmpty &&
+        identical(_drawingUndoStack.last, _drawing)) {
+      return;
+    }
+    _drawingUndoStack.add(_drawing);
+    _drawingRedoStack.clear();
+  }
+
+  void _replaceDrawing(NoteDrawing drawing) {
+    setState(() {
+      _drawing = drawing;
+      _drawingDirty = true;
+    });
+  }
+
+  void _undoDrawing() {
+    if (_drawingUndoStack.isEmpty) return;
+    setState(() {
+      _drawingRedoStack.add(_drawing);
+      _drawing = _drawingUndoStack.removeLast();
+      _drawingDirty = true;
+    });
+  }
+
+  void _redoDrawing() {
+    if (_drawingRedoStack.isEmpty) return;
+    setState(() {
+      _drawingUndoStack.add(_drawing);
+      _drawing = _drawingRedoStack.removeLast();
+      _drawingDirty = true;
+    });
+  }
+
+  void _clearDrawing() {
+    if (!_drawing.hasContent) return;
+    _rememberDrawingForUndo();
+    setState(() {
+      _drawing = NoteDrawing.empty();
+      _drawingDirty = true;
+    });
   }
 
   Widget _buildVideoGrid(List<NoteVideo> videos) {

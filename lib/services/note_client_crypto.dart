@@ -19,6 +19,9 @@ Future<Note> encryptNoteForClient(Note note, String password) async {
 
   final title = await _encryptString(note.title, password);
   final body = await _encryptString(note.body, password);
+  final drawingData = note.drawingData == null
+      ? null
+      : await _encryptString(note.drawingData!, password);
   final imagePath = note.imagePath == null
       ? null
       : await _encryptString(note.imagePath!, password);
@@ -33,6 +36,8 @@ Future<Note> encryptNoteForClient(Note note, String password) async {
   return note.copyWith(
     title: title,
     body: body,
+    drawingData: drawingData,
+    clearDrawingData: drawingData == null,
     imagePath: imagePath,
     clearImagePath: imagePath == null,
     voicePath: voicePath,
@@ -46,6 +51,9 @@ Future<Note> decryptNoteFromClient(Note note, String password) async {
 
   final title = await _decryptString(note.title, password);
   final body = await _decryptString(note.body, password);
+  final drawingData = note.drawingData == null
+      ? null
+      : await _decryptString(note.drawingData!, password);
   final imagePath = note.imagePath == null
       ? null
       : await _decryptString(note.imagePath!, password);
@@ -60,6 +68,8 @@ Future<Note> decryptNoteFromClient(Note note, String password) async {
   return note.copyWith(
     title: title,
     body: body,
+    drawingData: drawingData,
+    clearDrawingData: drawingData == null,
     imagePath: imagePath,
     clearImagePath: imagePath == null,
     voicePath: voicePath,

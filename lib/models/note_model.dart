@@ -6,6 +6,7 @@ class Note {
   final String id;
   final String title;
   final String body;
+  final String? drawingData;
   final String? imagePath;
   final List<String> photoPaths;
   final String? voicePath;
@@ -29,6 +30,7 @@ class Note {
     required this.id,
     required this.title,
     required this.body,
+    this.drawingData,
     this.imagePath,
     this.photoPaths = const [],
     this.voicePath,
@@ -47,6 +49,7 @@ class Note {
     String? id,
     String? title,
     String? body,
+    String? drawingData,
     String? imagePath,
     List<String>? photoPaths,
     String? voicePath,
@@ -60,6 +63,7 @@ class Note {
     String? hiddenKeyId,
     String? protectionPassword,
     bool clearImagePath = false,
+    bool clearDrawingData = false,
     bool clearVoicePath = false,
     bool clearHiddenKeyId = false,
     bool clearProtectionPassword = false,
@@ -69,6 +73,7 @@ class Note {
       id: id ?? this.id,
       title: title ?? this.title,
       body: body ?? this.body,
+      drawingData: clearDrawingData ? null : (drawingData ?? this.drawingData),
       imagePath: clearImagePath ? null : (imagePath ?? this.imagePath),
       photoPaths: photoPaths ?? this.photoPaths,
       voicePath: clearVoicePath ? null : (voicePath ?? this.voicePath),
@@ -90,6 +95,7 @@ class Note {
         'id': id,
         'title': title,
         'body': body,
+        'drawingData': drawingData,
         'imagePath': imagePath,
         'photoPaths': photoPaths,
         'voicePath': voicePath,
@@ -110,6 +116,7 @@ class Note {
       id: json['id'] as String,
       title: json['title'] as String,
       body: json['body'] as String,
+      drawingData: _readNullableString(json['drawingData']),
       imagePath: _readNullableString(json['imagePath']),
       photoPaths: _readStringList(json['photoPaths']),
       voicePath: _readNullableString(json['voicePath']),

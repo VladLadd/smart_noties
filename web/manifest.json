@@ -1,11 +1,11 @@
 {
-    "name": "smart_noties",
-    "short_name": "smart_noties",
+    "name": "Smart Notes",
+    "short_name": "Smart Notes",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "smart_noties_from_AI",
+    "description": "Smart Notes",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

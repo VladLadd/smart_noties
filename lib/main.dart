@@ -32,6 +32,7 @@ class SmartNotesApp extends StatelessWidget {
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) {
           return MaterialApp(
+            title: 'Smart Notes',
             debugShowCheckedModeBanner: false,
             locale: localeProvider.locale,
             supportedLocales: const [

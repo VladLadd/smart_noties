@@ -54,6 +54,7 @@ class NotesService {
     final requestBody = {
       'title': requestNote.title,
       'body': requestNote.body,
+      'drawingData': requestNote.drawingData ?? '',
       'userId': userId,
       'color': requestNote.color.toARGB32(),
       'isVoice': requestNote.isVoice,
@@ -70,6 +71,7 @@ class NotesService {
     if (note.hasProtection) {
       logBody['title'] = '***';
       logBody['body'] = '***';
+      logBody['drawingData'] = '***';
     }
     if ((logBody['protectionPassword'] as String).isNotEmpty) {
       logBody['protectionPassword'] = '***';
@@ -111,6 +113,7 @@ class NotesService {
     final requestBody = {
       'title': requestNote.title,
       'body': requestNote.body,
+      'drawingData': requestNote.drawingData ?? '',
       'color': requestNote.color.toARGB32(),
       'isVoice': requestNote.isVoice,
       'isVideo': requestNote.isVideo,
@@ -126,6 +129,7 @@ class NotesService {
     if (note.hasProtection) {
       logBody['title'] = '***';
       logBody['body'] = '***';
+      logBody['drawingData'] = '***';
     }
     if ((logBody['protectionPassword'] as String).isNotEmpty) {
       logBody['protectionPassword'] = '***';
@@ -457,6 +461,9 @@ class NotesService {
       'id': json['id']?.toString() ?? '',
       'title': json['title'] ?? '',
       'body': json['body'] ?? '',
+      'drawingData': (json['drawingData'] as String?)?.isEmpty == true
+          ? null
+          : json['drawingData'],
       'imagePath': (json['imagePath'] as String?)?.isEmpty == true
           ? null
           : json['imagePath'],

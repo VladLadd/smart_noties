@@ -435,10 +435,14 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         }
       }
 
+      final drawingData = _currentNote?.drawingData;
+
       if (_isEditing) {
         final updated = _currentNote!.copyWith(
           title: _titleController.text,
           body: _bodyController.text,
+          drawingData: drawingData,
+          clearDrawingData: drawingData == null,
           imagePath: imagePath,
           photoPaths: photoPaths,
           clearImagePath: imagePath == null,
@@ -460,6 +464,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             id: '',
             title: _titleController.text,
             body: _bodyController.text,
+            drawingData: null,
             imagePath: imagePath,
             photoPaths: photoPaths,
             voicePath: voicePath,
