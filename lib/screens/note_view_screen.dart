@@ -110,6 +110,13 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
     final textColor = _contrastColor(backgroundColor);
     final secondaryTextColor = textColor.withValues(alpha: 0.78);
     final strings = context.strings;
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final contentPadding = EdgeInsets.fromLTRB(
+      20 + viewPadding.left,
+      8,
+      20 + viewPadding.right,
+      28,
+    );
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -166,6 +173,8 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
         ],
       ),
       body: SafeArea(
+        left: false,
+        right: false,
         child: Column(
           children: [
             Expanded(
@@ -182,7 +191,7 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                       child: Stack(
                         children: [
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                            padding: contentPadding,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

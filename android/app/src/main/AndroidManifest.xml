@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Доступ к backend API на реальном устройстве -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Запись голосовых заметок (flutter_sound) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Чтение NFC-метки для показа скрытых заметок -->
@@ -7,7 +9,8 @@
     <application
         android:label="Smart Notes"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

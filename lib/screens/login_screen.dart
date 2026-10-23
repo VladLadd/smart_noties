@@ -175,8 +175,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
+                  runSpacing: 4,
                   children: [
                     Text(
                       strings.noAccount,

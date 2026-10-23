@@ -1201,23 +1201,10 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   Widget _buildBottomActions() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          ElevatedButton(
-            onPressed: _saving ? null : _saveNote,
-            child: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Text(context.strings.saveUpper),
-          ),
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final mediaActions = Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               _animatedIcon(
                 _isRecording ? Icons.stop : Icons.mic,
@@ -1238,8 +1225,40 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 onTap: _showAddVideoDialog,
               ),
             ],
-          ),
-        ],
+          );
+          final saveButton = ElevatedButton(
+            onPressed: _saving ? null : _saveNote,
+            child: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(context.strings.saveUpper),
+          );
+
+          if (constraints.maxWidth < 320) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                saveButton,
+                const SizedBox(height: 16),
+                Center(child: mediaActions),
+              ],
+            );
+          }
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              saveButton,
+              mediaActions,
+            ],
+          );
+        },
       ),
     );
   }

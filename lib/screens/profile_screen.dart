@@ -491,16 +491,17 @@ class _NfcTokenRequestTile extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
+            OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              overflowAlignment: OverflowBarAlignment.end,
+              spacing: 8,
+              overflowSpacing: 8,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => onCopy(request),
-                    icon: const Icon(Icons.copy),
-                    label: Text(strings.copy),
-                  ),
+                ElevatedButton.icon(
+                  onPressed: () => onCopy(request),
+                  icon: const Icon(Icons.copy),
+                  label: Text(strings.copy, softWrap: false),
                 ),
-                const SizedBox(width: 8),
                 IconButton(
                   tooltip: strings.iWroteCard,
                   onPressed: () => onConsume(request),
@@ -611,25 +612,29 @@ class _InfoTile extends StatelessWidget {
         children: [
           Icon(icon, size: 24, color: scheme.onSurfaceVariant),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: scheme.onSurfaceVariant,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

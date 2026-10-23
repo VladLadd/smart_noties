@@ -313,20 +313,28 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
         children: [
           if (note.hasProtection)
             Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock, size: 32),
-                  const SizedBox(height: 8),
-                  Text(
-                    strings.protectedNoteMultiline,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock, size: 32),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: 108,
+                      child: Text(
+                        strings.protectedNoteMultiline,
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           if (note.hasProtection)
@@ -339,25 +347,38 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
               ),
             ),
           if (!note.hasProtection && note.title.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  note.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Georgia',
-                  ),
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: note.isPending ? 22 : 0,
+                  bottom: note.isVoice || note.isVideo ? 22 : 0,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _plainTextPreview(note.body),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      note.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Georgia',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: Text(
+                        _plainTextPreview(note.body),
+                        maxLines: 5,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           if (note.isPending)
             Positioned(
@@ -785,27 +806,29 @@ class _ProtectedNotePasswordDialogState
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(context.strings.protectedNote),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(context.strings.enterPasswordToReadNote),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _passwordCtrl,
-            obscureText: _obscure,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: context.strings.password,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscure ? Icons.visibility_off : Icons.visibility,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(context.strings.enterPasswordToReadNote),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: _obscure,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: context.strings.password,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscure ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () => setState(() => _obscure = !_obscure),
                 ),
-                onPressed: () => setState(() => _obscure = !_obscure),
               ),
+              onSubmitted: (value) => Navigator.pop(context, value),
             ),
-            onSubmitted: (value) => Navigator.pop(context, value),
-          ),
-        ],
+          ],
+        ),
       ),
       actions: [
         TextButton(
