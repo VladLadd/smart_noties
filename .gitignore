@@ -48,3 +48,15 @@ app.*.map.json
 /android/app/release
 # Widget Preview related
 .widget_preview/
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+key.properties
+**/key.properties
+*.pem
+*.p12
+*.p8
+*.mobileprovision

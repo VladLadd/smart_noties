@@ -1,0 +1,49 @@
+
+name: Smart Noties Web CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: Test and build Flutter Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build web
+        run: |
+          flutter build web --release \
+            --base-href /app/ \
+            --dart-define=API_BASE_URL=https://86.110.191.206 \
+            --no-wasm-dry-run
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-noties-web
+          path: build/web/
+          if-no-files-found: error
+          retention-days: 7
