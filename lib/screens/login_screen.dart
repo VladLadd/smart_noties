@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
@@ -21,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   _LoginMode _mode = _LoginMode.email;
+  PhoneCountry _phoneCountry = PhoneCountry.countries.first;
   bool _loading = false;
   bool _obscure = true;
 
@@ -42,7 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
               password: _passwordCtrl.text,
             );
       } else {
-        final phone = _phoneCtrl.text.trim();
+        final phone =
+            '+${_phoneCountry.dialCode}${_phoneCtrl.text.replaceAll(RegExp(r'\D'), '')}';
         await context.read<AuthProvider>().requestPhoneCode(phone: phone);
         if (!mounted) return;
         await Navigator.push(
@@ -136,12 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ] else ...[
-                  _AuthField(
-                    controller: _phoneCtrl,
-                    label: strings.phoneNumber,
-                    keyboardType: TextInputType.phone,
-                    validator: _validatePhone,
-                  ),
+                  _buildPhoneField(strings.phoneNumber),
                   const SizedBox(height: 12),
                   Text(
                     strings.phoneCodeHelp,
@@ -257,10 +255,144 @@ class _LoginScreenState extends State<LoginScreen> {
     final strings = context.readStrings;
     final digits = (v ?? '').replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return strings.enterPhoneNumber;
-    if (digits.length < 10 || digits.length > 15) {
+    if (digits.length != _phoneCountry.maxDigits ||
+        _phoneCountry.dialCode.length + digits.length < 10 ||
+        _phoneCountry.dialCode.length + digits.length > 15) {
       return strings.invalidPhoneNumber;
     }
     return null;
+  }
+
+  Widget _buildPhoneField(String label) {
+    final formatter = _PhoneMaskFormatter(_phoneCountry.groups);
+    return TextFormField(
+      controller: _phoneCtrl,
+      keyboardType: TextInputType.phone,
+      inputFormatters: [formatter],
+      validator: _validatePhone,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIconConstraints: const BoxConstraints(minWidth: 116),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 8, right: 4),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<PhoneCountry>(
+              value: _phoneCountry,
+              isExpanded: false,
+              onChanged: _loading
+                  ? null
+                  : (country) {
+                      if (country == null) return;
+                      setState(() {
+                        _phoneCountry = country;
+                        final oldValue =
+                            TextEditingValue(text: _phoneCtrl.text);
+                        _phoneCtrl.value = _PhoneMaskFormatter(country.groups)
+                            .formatEditUpdate(oldValue, oldValue);
+                      });
+                    },
+              items: PhoneCountry.countries
+                  .map(
+                    (country) => DropdownMenuItem(
+                      value: country,
+                      child: Text(
+                        '${country.flag}  ${country.name}  +${country.dialCode}',
+                      ),
+                    ),
+                  )
+                  .toList(),
+              selectedItemBuilder: (context) => PhoneCountry.countries
+                  .map(
+                    (country) => Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('${country.flag} +${country.dialCode}'),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PhoneCountry {
+  final String name;
+  final String flag;
+  final String dialCode;
+  final List<int> groups;
+
+  const PhoneCountry(this.name, this.flag, this.dialCode, this.groups);
+
+  int get maxDigits => groups.fold(0, (total, group) => total + group);
+
+  static const countries = [
+    PhoneCountry('Россия', '🇷🇺', '7', [3, 3, 2, 2]),
+    PhoneCountry('Казахстан', '🇰🇿', '7', [3, 3, 2, 2]),
+    PhoneCountry('США', '🇺🇸', '1', [3, 3, 4]),
+    PhoneCountry('Канада', '🇨🇦', '1', [3, 3, 4]),
+    PhoneCountry('Великобритания', '🇬🇧', '44', [4, 3, 3]),
+    PhoneCountry('Германия', '🇩🇪', '49', [3, 3, 4]),
+    PhoneCountry('Франция', '🇫🇷', '33', [1, 2, 2, 2, 2]),
+    PhoneCountry('Беларусь', '🇧🇾', '375', [2, 3, 2, 2]),
+    PhoneCountry('Украина', '🇺🇦', '380', [2, 3, 2, 2]),
+    PhoneCountry('Армения', '🇦🇲', '374', [2, 3, 2, 2]),
+    PhoneCountry('Грузия', '🇬🇪', '995', [3, 2, 2, 2]),
+    PhoneCountry('Турция', '🇹🇷', '90', [3, 3, 2, 2]),
+    PhoneCountry('Узбекистан', '🇺🇿', '998', [2, 3, 2, 2]),
+    PhoneCountry('Израиль', '🇮🇱', '972', [2, 3, 4]),
+    PhoneCountry('Индия', '🇮🇳', '91', [5, 5]),
+    PhoneCountry('Китай', '🇨🇳', '86', [3, 4, 4]),
+    PhoneCountry('Япония', '🇯🇵', '81', [2, 4, 4]),
+    PhoneCountry('Испания', '🇪🇸', '34', [3, 2, 2, 2]),
+    PhoneCountry('Италия', '🇮🇹', '39', [3, 3, 4]),
+    PhoneCountry('Польша', '🇵🇱', '48', [3, 3, 3]),
+    PhoneCountry('Австралия', '🇦🇺', '61', [3, 3, 3]),
+  ];
+}
+
+class _PhoneMaskFormatter extends TextInputFormatter {
+  final List<int> groups;
+
+  _PhoneMaskFormatter(this.groups);
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final cursor = newValue.selection.baseOffset;
+    final digitsBeforeCursor = cursor < 0
+        ? digits.length
+        : newValue.text
+            .substring(0, cursor.clamp(0, newValue.text.length))
+            .replaceAll(RegExp(r'\D'), '')
+            .length;
+    final maxDigits = groups.fold<int>(0, (total, group) => total + group);
+    final limited = digits.substring(0, digits.length.clamp(0, maxDigits));
+    final formatted = StringBuffer();
+    var offset = 0;
+    for (final group in groups) {
+      if (offset >= limited.length) break;
+      if (formatted.isNotEmpty) formatted.write(' ');
+      final end = (offset + group).clamp(0, limited.length);
+      formatted.write(limited.substring(offset, end));
+      offset = end;
+    }
+    final text = formatted.toString();
+    final targetDigitCount = digitsBeforeCursor.clamp(0, limited.length);
+    var selectionOffset = 0;
+    var seenDigits = 0;
+    while (selectionOffset < text.length && seenDigits < targetDigitCount) {
+      if (RegExp(r'\d').hasMatch(text[selectionOffset])) seenDigits++;
+      selectionOffset++;
+    }
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: selectionOffset),
+    );
   }
 }
 

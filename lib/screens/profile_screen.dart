@@ -516,6 +516,9 @@ class _NfcTokenRequestTile extends StatelessWidget {
   }
 
   String _requestSubtitle(NfcTokenRequest request, AppStrings strings) {
+    if (request.status == 'revoked') {
+      return strings.nfcKeyRevoked;
+    }
     if (request.isApproved) {
       return strings.approvedAt(_fmtDate(request.approvedAt));
     }
@@ -552,6 +555,10 @@ class _RequestStatusBadge extends StatelessWidget {
       case 'consumed':
         text = strings.consumed;
         color = Colors.blueGrey[700];
+        break;
+      case 'revoked':
+        text = strings.revoked;
+        color = Colors.red[700];
         break;
       default:
         text = strings.pending;

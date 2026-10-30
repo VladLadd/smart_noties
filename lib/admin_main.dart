@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/admin_user_model.dart';
 import 'models/nfc_key_model.dart';
@@ -22,18 +23,46 @@ class SmartNotesAdminApp extends StatefulWidget {
 class _SmartNotesAdminAppState extends State<SmartNotesAdminApp> {
   AuthUser? _user;
   String? _token;
+  bool _darkMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThemePreference();
+  }
+
+  Future<void> _loadThemePreference() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _darkMode = preferences.getBool('admin_dark_mode') ?? false);
+  }
+
+  Future<void> _toggleTheme() async {
+    final next = !_darkMode;
+    setState(() => _darkMode = next);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('admin_dark_mode', next);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
       home: _token == null || _user == null
-          ? _AdminLoginScreen(onLoggedIn: _onLoggedIn)
+          ? _AdminLoginScreen(
+              onLoggedIn: _onLoggedIn,
+              darkMode: _darkMode,
+              onToggleTheme: _toggleTheme,
+            )
           : _AdminShell(
               user: _user!,
               token: _token!,
               onLogout: _logout,
+              darkMode: _darkMode,
+              onToggleTheme: _toggleTheme,
             ),
     );
   }
@@ -55,8 +84,14 @@ class _SmartNotesAdminAppState extends State<SmartNotesAdminApp> {
 
 class _AdminLoginScreen extends StatefulWidget {
   final void Function(String token, AuthUser user) onLoggedIn;
+  final bool darkMode;
+  final VoidCallback onToggleTheme;
 
-  const _AdminLoginScreen({required this.onLoggedIn});
+  const _AdminLoginScreen({
+    required this.onLoggedIn,
+    required this.darkMode,
+    required this.onToggleTheme,
+  });
 
   @override
   State<_AdminLoginScreen> createState() => _AdminLoginScreenState();
@@ -104,17 +139,18 @@ class _AdminLoginScreenState extends State<_AdminLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: Container(
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: scheme.surface,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.black12),
+              border: Border.all(color: scheme.outlineVariant),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -128,10 +164,19 @@ class _AdminLoginScreenState extends State<_AdminLoginScreen> {
                     fontFamily: 'Georgia',
                   ),
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: widget.darkMode ? 'Светлая тема' : 'Тёмная тема',
+                    onPressed: widget.onToggleTheme,
+                    icon: Icon(
+                        widget.darkMode ? Icons.light_mode : Icons.dark_mode),
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Text(
                   'Выпуск ссылок для NFC-карт smart_noties',
-                  style: TextStyle(color: Colors.grey[700]),
+                  style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 24),
                 TextField(
@@ -188,11 +233,15 @@ class _AdminShell extends StatefulWidget {
   final AuthUser user;
   final String token;
   final VoidCallback onLogout;
+  final bool darkMode;
+  final VoidCallback onToggleTheme;
 
   const _AdminShell({
     required this.user,
     required this.token,
     required this.onLogout,
+    required this.darkMode,
+    required this.onToggleTheme,
   });
 
   @override
@@ -232,12 +281,12 @@ class _AdminShellState extends State<_AdminShell> {
     final selected = _section.clamp(0, sections.length - 1).toInt();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Row(
         children: [
           Container(
             width: 248,
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             child: SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -265,6 +314,17 @@ class _AdminShellState extends State<_AdminShell> {
                       selected: selected == i,
                       onTap: () => setState(() => _section = i),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      title: const Text('Тёмная тема'),
+                      value: widget.darkMode,
+                      onChanged: (_) => widget.onToggleTheme(),
+                      secondary: Icon(
+                          widget.darkMode ? Icons.dark_mode : Icons.light_mode),
+                    ),
+                  ),
                   const Spacer(),
                   Padding(
                     padding: const EdgeInsets.all(12),
@@ -317,10 +377,11 @@ class _UserBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F5F7),
+        color: scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -368,10 +429,11 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       child: Material(
-        color: selected ? Colors.black : Colors.transparent,
+        color: selected ? scheme.primary : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
@@ -380,12 +442,13 @@ class _NavItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                Icon(icon, color: selected ? Colors.white : Colors.black87),
+                Icon(icon,
+                    color: selected ? scheme.onPrimary : scheme.onSurface),
                 const SizedBox(width: 12),
                 Text(
                   label,
                   style: TextStyle(
-                    color: selected ? Colors.white : Colors.black87,
+                    color: selected ? scheme.onPrimary : scheme.onSurface,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -871,11 +934,12 @@ class _PanelFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -897,7 +961,8 @@ class _PanelFrame extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(subtitle, style: TextStyle(color: Colors.grey[700])),
+                      Text(subtitle,
+                          style: TextStyle(color: scheme.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -976,6 +1041,7 @@ class _UsersList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     if (loading) return const Center(child: CircularProgressIndicator());
     if (users.isEmpty) {
       return const _EmptyState(text: 'Пользователи не найдены');
@@ -988,7 +1054,7 @@ class _UsersList extends StatelessWidget {
         final user = users[index];
         final selected = selectedUser?.id == user.id;
         return Material(
-          color: selected ? Colors.black : const Color(0xFFF4F5F7),
+          color: selected ? scheme.primary : scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
@@ -998,11 +1064,12 @@ class _UsersList extends StatelessWidget {
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: selected ? Colors.white : Colors.black12,
+                    backgroundColor:
+                        selected ? scheme.onPrimary : scheme.outlineVariant,
                     child: Text(
                       user.id.toString(),
                       style: TextStyle(
-                        color: selected ? Colors.black : Colors.black87,
+                        color: selected ? scheme.primary : scheme.onSurface,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1018,7 +1085,8 @@ class _UsersList extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: selected ? Colors.white : Colors.black87,
+                            color:
+                                selected ? scheme.onPrimary : scheme.onSurface,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -1028,7 +1096,9 @@ class _UsersList extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: selected ? Colors.white70 : Colors.grey[700],
+                            color: selected
+                                ? scheme.onPrimary.withValues(alpha: .7)
+                                : scheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -1080,6 +1150,7 @@ class _SelectedUserKeysPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final selected = user;
     if (selected == null) {
       return const _EmptyState(text: 'Выберите пользователя слева');
@@ -1104,7 +1175,7 @@ class _SelectedUserKeysPanel extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     'ID ${selected.id} · ${selected.role}',
-                    style: TextStyle(color: Colors.grey[700]),
+                    style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -1143,13 +1214,15 @@ class _NfcKeysTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     if (keys.isEmpty) return const _EmptyState(text: 'NFC-карт пока нет');
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
         child: DataTable(
-          headingRowColor: WidgetStateProperty.all(const Color(0xFFF4F5F7)),
+          headingRowColor:
+              WidgetStateProperty.all(scheme.surfaceContainerHighest),
           columns: const [
             DataColumn(label: Text('Название')),
             DataColumn(label: Text('Tag ID')),
@@ -1201,13 +1274,15 @@ class _TokenRequestsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     if (requests.isEmpty) return const _EmptyState(text: 'Заявок нет');
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
         child: DataTable(
-          headingRowColor: WidgetStateProperty.all(const Color(0xFFF4F5F7)),
+          headingRowColor:
+              WidgetStateProperty.all(scheme.surfaceContainerHighest),
           columns: const [
             DataColumn(label: Text('Пользователь')),
             DataColumn(label: Text('Название')),
@@ -1439,7 +1514,10 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Text(
         text,
-        style: TextStyle(color: Colors.grey[700], fontSize: 16),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 16,
+        ),
       ),
     );
   }
@@ -1467,9 +1545,10 @@ Future<void> _showCreatedKeyDialog(
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF4F5F7),
+                color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.black12),
+                border:
+                    Border.all(color: Theme.of(ctx).colorScheme.outlineVariant),
               ),
               child: SelectableText(created.ndefUri),
             ),

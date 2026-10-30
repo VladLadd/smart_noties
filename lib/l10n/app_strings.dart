@@ -279,6 +279,9 @@ class AppStrings {
   String get rejected => _ru ? 'Отклонен' : 'Rejected';
   String get consumed => _ru ? 'Записан' : 'Written';
   String get pending => _ru ? 'Ожидает' : 'Pending';
+  String get revoked => _ru ? 'Отозван' : 'Revoked';
+  String get nfcKeyRevoked =>
+      _ru ? 'Карта отозвана администратором' : 'Card revoked by administrator';
   String approvedAt(String value) =>
       _ru ? 'Одобрено $value' : 'Approved $value';
   String rejectedAt(String value) =>
