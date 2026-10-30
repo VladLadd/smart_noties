@@ -113,3 +113,29 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$USER@$HOST" \
             "cd /var/www/smart-noties/incoming && sha256sum -c \"${GITHUB_SHA}.sha256\" && sudo -n /usr/local/sbin/deploy-smart-noties-web --check ${GITHUB_SHA}"
+
+      - name: Verify latest master commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          LATEST_SHA="$(gh api "repos/$REPO/git/ref/heads/master" --jq '.object.sha')"
+
+          if [[ "$GITHUB_SHA" != "$LATEST_SHA" ]]; then
+            echo "Skipping outdated build: $GITHUB_SHA"
+            echo "Latest master: $LATEST_SHA"
+            exit 1
+          fi
+
+      - name: Stage and deploy Flutter Web
+        env:
+          HOST: ${{ vars.WEB_DEPLOY_HOST }}
+          PORT: ${{ vars.WEB_DEPLOY_PORT }}
+          USER: ${{ vars.WEB_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" \
+            "sudo -n /usr/local/sbin/deploy-smart-noties-web --stage ${GITHUB_SHA} && sudo -n /usr/local/sbin/deploy-smart-noties-web --deploy ${GITHUB_SHA}"
