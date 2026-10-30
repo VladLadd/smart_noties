@@ -47,3 +47,69 @@ jobs:
           path: build/web/
           if-no-files-found: error
           retention-days: 7
+
+  deploy-web:
+    name: Upload Flutter Web to ladd-server
+    needs: build-web
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: smart-noties-web-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Download verified build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: smart-noties-web
+          path: dist/
+
+      - name: Prepare deployment archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf "${GITHUB_SHA}.tar.gz" -C dist .
+          sha256sum "${GITHUB_SHA}.tar.gz" > archive.sha256
+          cat archive.sha256
+
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.WEB_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.WEB_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload archive
+        env:
+          HOST: ${{ vars.WEB_DEPLOY_HOST }}
+          PORT: ${{ vars.WEB_DEPLOY_PORT }}
+          USER: ${{ vars.WEB_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          scp -P "$PORT" \
+            -o StrictHostKeyChecking=yes \
+            "${GITHUB_SHA}.tar.gz" \
+            "$USER@$HOST:/var/www/smart-noties/incoming/${GITHUB_SHA}.tar.gz"
+
+          scp -P "$PORT" \
+            -o StrictHostKeyChecking=yes \
+            archive.sha256 \
+            "$USER@$HOST:/var/www/smart-noties/incoming/${GITHUB_SHA}.sha256"
+
+      - name: Verify uploaded archive
+        env:
+          HOST: ${{ vars.WEB_DEPLOY_HOST }}
+          PORT: ${{ vars.WEB_DEPLOY_PORT }}
+          USER: ${{ vars.WEB_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" \
+            "cd /var/www/smart-noties/incoming && sha256sum -c \"${GITHUB_SHA}.sha256\" && sudo -n /usr/local/sbin/deploy-smart-noties-web --check ${GITHUB_SHA}"
