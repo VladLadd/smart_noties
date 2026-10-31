@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,7 +7,10 @@ import '../services/auth_service.dart';
 enum AuthStatus { checking, authenticated, unauthenticated }
 
 class AuthProvider extends ChangeNotifier {
+  static const _sessionCheckInterval = Duration(seconds: 15);
   final _service = AuthService();
+  Timer? _sessionTimer;
+  bool _sessionCheckInProgress = false;
 
   AuthStatus status = AuthStatus.checking;
   AuthUser? user;
@@ -14,6 +18,7 @@ class AuthProvider extends ChangeNotifier {
   int? userId;
   String? email;
   String role = 'user';
+  String? forcedLogoutCode;
 
   AuthProvider() {
     _tryAutoLogin();
@@ -41,6 +46,7 @@ class AuthProvider extends ChangeNotifier {
 
     status = AuthStatus.authenticated;
     notifyListeners();
+    _startSessionMonitor();
   }
 
   Future<void> register({
@@ -85,6 +91,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
     if (token != null) await _service.logout(token!);
     await _service.clearToken();
     token = null;
@@ -92,6 +100,7 @@ class AuthProvider extends ChangeNotifier {
     user = null;
     email = null;
     role = 'user';
+    forcedLogoutCode = null;
     status = AuthStatus.unauthenticated;
     notifyListeners();
   }
@@ -112,7 +121,68 @@ class AuthProvider extends ChangeNotifier {
     await _service.saveToken(result.token);
     if (userId != null) await _service.saveUserId(userId!);
     status = AuthStatus.authenticated;
+    forcedLogoutCode = null;
     notifyListeners();
+    _startSessionMonitor();
+  }
+
+  void _startSessionMonitor() {
+    _sessionTimer?.cancel();
+    unawaited(_checkSession());
+    _sessionTimer = Timer.periodic(_sessionCheckInterval, (_) {
+      unawaited(_checkSession());
+    });
+  }
+
+  Future<void> _checkSession() async {
+    final currentToken = token;
+    if (currentToken == null ||
+        status != AuthStatus.authenticated ||
+        _sessionCheckInProgress) {
+      return;
+    }
+    _sessionCheckInProgress = true;
+    try {
+      await _service.validateSession(currentToken);
+    } on AuthException catch (error) {
+      if (token != currentToken) return;
+      if (error.code == 'account_blocked' || error.statusCode == 401) {
+        await _clearLocalSession(
+          noticeCode:
+              error.code == 'account_blocked' ? 'account_blocked' : null,
+        );
+      }
+    } catch (_) {
+      // A temporary network problem does not terminate a valid local session.
+    } finally {
+      _sessionCheckInProgress = false;
+    }
+  }
+
+  Future<void> _clearLocalSession({String? noticeCode}) async {
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
+    await _service.clearToken();
+    token = null;
+    userId = null;
+    user = null;
+    email = null;
+    role = 'user';
+    forcedLogoutCode = noticeCode;
+    status = AuthStatus.unauthenticated;
+    notifyListeners();
+  }
+
+  void clearForcedLogoutNotice() {
+    if (forcedLogoutCode == null) return;
+    forcedLogoutCode = null;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _sessionTimer?.cancel();
+    super.dispose();
   }
 
   // Декодирует payload JWT и ищет userId/id/sub без сторонних пакетов.

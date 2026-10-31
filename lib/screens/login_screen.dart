@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
 import 'forgot_password_screen.dart';
@@ -55,8 +56,11 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+      final message = e is AuthException && e.code == 'account_blocked'
+          ? context.readStrings.accountBlocked
+          : e.toString();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
+        SnackBar(content: Text(message), backgroundColor: Colors.red[700]),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -67,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final strings = context.strings;
+    final authProvider = context.watch<AuthProvider>();
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -94,6 +99,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: scheme.onSurface.withValues(alpha: 0.68),
                   ),
                 ),
+                if (authProvider.forcedLogoutCode == 'account_blocked') ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: scheme.errorContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      strings.accountBlocked,
+                      style: TextStyle(color: scheme.onErrorContainer),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 48),
                 _buildModeSwitch(),
                 const SizedBox(height: 24),

@@ -38,12 +38,36 @@ class AuthUser {
 
 class AuthException implements Exception {
   final String message;
-  const AuthException(this.message);
+  final String? code;
+  final int? statusCode;
+
+  const AuthException(this.message, {this.code, this.statusCode});
   @override
   String toString() => message;
 }
 
 class AuthService {
+  Future<void> validateSession(String token) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/api/auth/status'),
+      headers: {'Authorization': 'Bearer $token'},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode < 400) return;
+
+    var code = 'session_invalid';
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      code = body['error']?.toString() ?? code;
+    } on FormatException {
+      // Status code is enough to identify an expired session.
+    }
+    throw AuthException(
+      code,
+      code: code,
+      statusCode: response.statusCode,
+    );
+  }
+
   Future<({String token, AuthUser user})> register({
     required String name,
     required String email,
@@ -138,10 +162,15 @@ class AuthService {
 
     if (response.statusCode >= 400) {
       final msg = body['message'] ?? body['error'] ?? 'Ошибка сервера';
-      throw AuthException(msg.toString());
+      throw AuthException(
+        msg.toString(),
+        code: msg is String ? msg : null,
+        statusCode: response.statusCode,
+      );
     }
     final token = body['token'] as String? ?? '';
-    final user = AuthUser.fromJson(body['user'] as Map<String, dynamic>? ?? body);
+    final user =
+        AuthUser.fromJson(body['user'] as Map<String, dynamic>? ?? body);
     return (token: token, user: user);
   }
 
@@ -162,7 +191,11 @@ class AuthService {
 
     if (response.statusCode >= 400) {
       final msg = body['message'] ?? body['error'] ?? 'Ошибка сервера';
-      throw AuthException(msg.toString());
+      throw AuthException(
+        msg.toString(),
+        code: msg is String ? msg : null,
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -178,15 +211,13 @@ class AuthService {
 
   Future<void> logout(String token) async {
     try {
-      await http
-          .post(
-            Uri.parse('$_baseUrl/api/auth/logout'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(const Duration(seconds: 10));
+      await http.post(
+        Uri.parse('$_baseUrl/api/auth/logout'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
     } catch (_) {
       // ignore network errors — clear local session regardless
     }

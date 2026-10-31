@@ -5,6 +5,7 @@ class AdminUser {
   final String phone;
   final String role;
   final int nfcKeysCount;
+  final bool isBlocked;
 
   const AdminUser({
     required this.id,
@@ -13,6 +14,7 @@ class AdminUser {
     required this.phone,
     required this.role,
     required this.nfcKeysCount,
+    required this.isBlocked,
   });
 
   factory AdminUser.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class AdminUser {
       phone: json['phone']?.toString() ?? '',
       role: json['role']?.toString() ?? 'user',
       nfcKeysCount: _readInt(json['nfcKeysCount']) ?? 0,
+      isBlocked: json['isBlocked'] == true,
     );
   }
 

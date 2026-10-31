@@ -602,6 +602,7 @@ class _AdminUsersPanelState extends State<_AdminUsersPanel> {
   bool _loadingUsers = true;
   bool _loadingKeys = false;
   bool _creating = false;
+  int? _actingUserId;
   String? _error;
 
   @override
@@ -630,10 +631,20 @@ class _AdminUsersPanelState extends State<_AdminUsersPanel> {
       if (!mounted) return;
       setState(() {
         _users = users;
-        if (_selectedUser != null &&
-            !users.any((user) => user.id == _selectedUser!.id)) {
-          _selectedUser = null;
-          _selectedKeys = const [];
+        if (_selectedUser != null) {
+          AdminUser? refreshed;
+          for (final user in users) {
+            if (user.id == _selectedUser!.id) {
+              refreshed = user;
+              break;
+            }
+          }
+          if (refreshed == null) {
+            _selectedUser = null;
+            _selectedKeys = const [];
+          } else {
+            _selectedUser = refreshed;
+          }
         }
       });
     } catch (e) {
@@ -714,6 +725,53 @@ class _AdminUsersPanelState extends State<_AdminUsersPanel> {
     }
   }
 
+  Future<void> _toggleUserBlocked(AdminUser user) async {
+    if (user.role != 'user' || _actingUserId != null) return;
+    final blocked = !user.isBlocked;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(blocked
+            ? 'Заблокировать пользователя?'
+            : 'Разблокировать пользователя?'),
+        content: Text(
+          blocked
+              ? 'Пользователь будет разлогинен и не сможет войти, пока вы его не разблокируете.'
+              : 'Пользователь снова сможет войти в аккаунт.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(blocked ? 'Заблокировать' : 'Разблокировать'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _actingUserId = user.id;
+      _error = null;
+    });
+    try {
+      await _service.setUserBlocked(
+        token: widget.token,
+        userId: user.id,
+        blocked: blocked,
+      );
+      await _search();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _actingUserId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return _PanelFrame(
@@ -755,6 +813,8 @@ class _AdminUsersPanelState extends State<_AdminUsersPanel> {
                     selectedUser: _selectedUser,
                     loading: _loadingUsers,
                     onSelect: _selectUser,
+                    actingUserId: _actingUserId,
+                    onToggleBlocked: _toggleUserBlocked,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -1035,12 +1095,16 @@ class _UsersList extends StatelessWidget {
   final AdminUser? selectedUser;
   final bool loading;
   final ValueChanged<AdminUser> onSelect;
+  final int? actingUserId;
+  final ValueChanged<AdminUser> onToggleBlocked;
 
   const _UsersList({
     required this.users,
     required this.selectedUser,
     required this.loading,
     required this.onSelect,
+    required this.actingUserId,
+    required this.onToggleBlocked,
   });
 
   @override
@@ -1114,6 +1178,26 @@ class _UsersList extends StatelessWidget {
                     text: '${user.nfcKeysCount}',
                     dark: selected,
                   ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip:
+                        user.isBlocked ? 'Разблокировать' : 'Заблокировать',
+                    onPressed: user.role != 'user' || actingUserId != null
+                        ? null
+                        : () => onToggleBlocked(user),
+                    icon: actingUserId == user.id
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            user.isBlocked ? Icons.lock_open : Icons.block,
+                            color: user.isBlocked ? Colors.green : Colors.red,
+                            size: 20,
+                          ),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ],
               ),
             ),
@@ -1127,6 +1211,7 @@ class _UsersList extends StatelessWidget {
     final parts = [
       if (user.name.isNotEmpty) user.name,
       if (user.phone.isNotEmpty) user.phone,
+      if (user.isBlocked) 'Заблокирован',
       user.role,
     ];
     return parts.join(' · ');

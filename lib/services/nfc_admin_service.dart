@@ -120,6 +120,20 @@ class NfcAdminService {
     return _readList(json).map(AdminUser.fromJson).toList();
   }
 
+  Future<void> setUserBlocked({
+    required String token,
+    required int userId,
+    required bool blocked,
+  }) async {
+    final request = http.Request(
+      blocked ? 'POST' : 'DELETE',
+      Uri.parse('$_baseUrl/api/admin/users/$userId/block'),
+    )..headers.addAll(_headers(token));
+    final streamed = await request.send().timeout(const Duration(seconds: 15));
+    final response = await http.Response.fromStream(streamed);
+    _parseEmptyResponse(response);
+  }
+
   Future<List<NfcKey>> fetchUserKeys({
     required String token,
     required int userId,
@@ -188,7 +202,8 @@ class NfcAdminService {
   }) async {
     final response = await http
         .post(
-          Uri.parse('$_baseUrl/api/admin/nfc/token-requests/$requestId/approve'),
+          Uri.parse(
+              '$_baseUrl/api/admin/nfc/token-requests/$requestId/approve'),
           headers: _headers(token),
         )
         .timeout(const Duration(seconds: 15));
@@ -246,7 +261,8 @@ class NfcAdminService {
     if (json is! List) return const [];
     return json
         .whereType<Map>()
-        .map((item) => item.map((key, value) => MapEntry(key.toString(), value)))
+        .map(
+            (item) => item.map((key, value) => MapEntry(key.toString(), value)))
         .toList();
   }
 }

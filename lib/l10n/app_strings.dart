@@ -27,6 +27,9 @@ class AppStrings {
   String get profile => _ru ? 'Профиль' : 'Profile';
   String get logout => _ru ? 'Выйти' : 'Log out';
   String get logoutQuestion => _ru ? 'Выйти из аккаунта?' : 'Log out?';
+  String get accountBlocked => _ru
+      ? 'Аккаунт заблокирован администратором. Обратитесь в поддержку.'
+      : 'This account is blocked by an administrator. Contact support.';
   String get cancel => _ru ? 'Отмена' : 'Cancel';
   String get hide => _ru ? 'Скрыть' : 'Hide';
   String get open => _ru ? 'Открыть' : 'Open';

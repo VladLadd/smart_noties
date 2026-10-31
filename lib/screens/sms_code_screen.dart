@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/auth_service.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -42,7 +43,11 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      _showError(e.toString());
+      _showError(
+        e is AuthException && e.code == 'account_blocked'
+            ? context.readStrings.accountBlocked
+            : e.toString(),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -58,7 +63,11 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      _showError(e.toString());
+      _showError(
+        e is AuthException && e.code == 'account_blocked'
+            ? context.readStrings.accountBlocked
+            : e.toString(),
+      );
     } finally {
       if (mounted) setState(() => _resending = false);
     }

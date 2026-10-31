@@ -1510,77 +1510,86 @@ class _RichTextToolbar extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Container(
-      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: scheme.outline),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Row(
-          children: [
-            _FormatToolButton(
-              tooltip: previewEnabled ? strings.editor : strings.preview,
-              icon:
-                  previewEnabled ? Icons.edit_outlined : Icons.preview_outlined,
-              selected: previewEnabled,
-              onPressed: onTogglePreview,
-            ),
-            _ToolbarDivider(color: scheme.outline),
-            _FormatToolButton(
-              tooltip: strings.bold,
-              icon: Icons.format_bold,
-              onPressed: onBold,
-            ),
-            _FormatToolButton(
-              tooltip: strings.italic,
-              icon: Icons.format_italic,
-              onPressed: onItalic,
-            ),
-            _FormatToolButton(
-              tooltip: strings.heading,
-              icon: Icons.title,
-              onPressed: onHeading,
-            ),
-            _FormatToolButton(
-              tooltip: strings.bulletList,
-              icon: Icons.format_list_bulleted,
-              onPressed: onBulletList,
-            ),
-            _FormatToolButton(
-              tooltip: strings.numberedList,
-              icon: Icons.format_list_numbered,
-              onPressed: onNumberedList,
-            ),
-            _FormatToolButton(
-              tooltip: strings.checklist,
-              icon: Icons.check_box_outlined,
-              onPressed: onChecklist,
-            ),
-            _FormatToolButton(
-              tooltip: strings.quote,
-              icon: Icons.format_quote,
-              onPressed: onQuote,
-            ),
-            _FormatToolButton(
-              tooltip: strings.inlineCode,
-              icon: Icons.code,
-              onPressed: onInlineCode,
-            ),
-            _FormatToolButton(
-              tooltip: strings.link,
-              icon: Icons.link,
-              onPressed: onLink,
-            ),
-            _FormatToolButton(
-              tooltip: strings.insertTable,
-              icon: Icons.table_chart_outlined,
-              onPressed: onTable,
-            ),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _FormatToolButton(
+                tooltip: previewEnabled ? strings.editor : strings.preview,
+                icon: previewEnabled
+                    ? Icons.edit_outlined
+                    : Icons.preview_outlined,
+                selected: previewEnabled,
+                onPressed: onTogglePreview,
+              ),
+              _ToolbarDivider(color: scheme.outline),
+              _FormatToolButton(
+                tooltip: strings.bold,
+                icon: Icons.format_bold,
+                onPressed: onBold,
+              ),
+              _FormatToolButton(
+                tooltip: strings.italic,
+                icon: Icons.format_italic,
+                onPressed: onItalic,
+              ),
+              _FormatToolButton(
+                tooltip: strings.heading,
+                icon: Icons.title,
+                onPressed: onHeading,
+              ),
+              _FormatToolButton(
+                tooltip: strings.bulletList,
+                icon: Icons.format_list_bulleted,
+                onPressed: onBulletList,
+              ),
+              _FormatToolButton(
+                tooltip: strings.numberedList,
+                icon: Icons.format_list_numbered,
+                onPressed: onNumberedList,
+              ),
+            ],
+          ),
+          Divider(height: 2, thickness: 1, color: scheme.outline),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _FormatToolButton(
+                tooltip: strings.checklist,
+                icon: Icons.check_box_outlined,
+                onPressed: onChecklist,
+              ),
+              _FormatToolButton(
+                tooltip: strings.quote,
+                icon: Icons.format_quote,
+                onPressed: onQuote,
+              ),
+              _FormatToolButton(
+                tooltip: strings.inlineCode,
+                icon: Icons.code,
+                onPressed: onInlineCode,
+              ),
+              _FormatToolButton(
+                tooltip: strings.link,
+                icon: Icons.link,
+                onPressed: onLink,
+              ),
+              _FormatToolButton(
+                tooltip: strings.insertTable,
+                icon: Icons.table_chart_outlined,
+                onPressed: onTable,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

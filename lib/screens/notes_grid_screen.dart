@@ -78,7 +78,8 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   Widget _buildEmptyState() {
     final scheme = Theme.of(context).colorScheme;
     final strings = context.strings;
-    return Padding(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.only(top: 80, left: 24, right: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,14 +99,6 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
             style: TextStyle(
               fontSize: 18,
               color: scheme.onSurface.withValues(alpha: 0.68),
-            ),
-          ),
-          const Spacer(),
-          const Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: EdgeInsets.only(right: 28, bottom: 40),
-              child: Icon(Icons.arrow_downward, size: 48),
             ),
           ),
         ],
