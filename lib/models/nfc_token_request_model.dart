@@ -57,6 +57,25 @@ class NfcTokenRequest {
 
   String get title => name.isNotEmpty ? name : 'NFC-токен';
 
+  NfcTokenRequest copyWith({String? status, String? ndefUri}) {
+    return NfcTokenRequest(
+      id: id,
+      userId: userId,
+      userName: userName,
+      userEmail: userEmail,
+      userPhone: userPhone,
+      status: status ?? this.status,
+      name: name,
+      nfcKeyId: nfcKeyId,
+      ndefUri: ndefUri ?? this.ndefUri,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      approvedAt: approvedAt,
+      consumedAt: consumedAt,
+      rejectedAt: rejectedAt,
+    );
+  }
+
   static int? _readInt(Object? value) {
     if (value is int) return value;
     if (value is num) return value.toInt();

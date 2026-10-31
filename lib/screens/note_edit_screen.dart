@@ -956,6 +956,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             onInlineCode: () =>
                 _wrapBodySelection('`', '`', strings.codeSample),
             onLink: _insertMarkdownLink,
+            onTable: _insertMarkdownTable,
           ),
           const SizedBox(height: 8),
           AnimatedSwitcher(
@@ -1071,6 +1072,35 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     final selected = selection.textInside(text).trim();
     final title = selected.isEmpty ? context.readStrings.linkSample : selected;
     _replaceBodySelection(selection, '[$title](https://)');
+  }
+
+  void _insertMarkdownTable() {
+    final text = _bodyController.text;
+    final selection = _safeBodySelection(text);
+    final before = selection.textBefore(text);
+    final after = selection.textAfter(text);
+    const firstHeader = 'Столбец 1';
+    const table = '''
+| $firstHeader | Столбец 2 | Столбец 3 |
+| --- | --- | --- |
+| Текст | Текст | Текст |
+| Текст | Текст | Текст |''';
+    final leadingNewline =
+        before.isNotEmpty && !before.endsWith('\n') ? '\n' : '';
+    final trailingNewline =
+        after.isNotEmpty && !after.startsWith('\n') ? '\n' : '';
+    final replacement = '$leadingNewline$table$trailingNewline';
+    final nextText = '$before$replacement$after';
+    final headerStart = before.length + leadingNewline.length + 2;
+    _bodyController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection(
+        baseOffset: headerStart,
+        extentOffset: headerStart + firstHeader.length,
+      ),
+    );
+    setState(() => _showBodyPreview = false);
+    _bodyFocusNode.requestFocus();
   }
 
   TextSelection _safeBodySelection(String text) {
@@ -1457,6 +1487,7 @@ class _RichTextToolbar extends StatelessWidget {
   final VoidCallback onQuote;
   final VoidCallback onInlineCode;
   final VoidCallback onLink;
+  final VoidCallback onTable;
 
   const _RichTextToolbar({
     required this.previewEnabled,
@@ -1470,6 +1501,7 @@ class _RichTextToolbar extends StatelessWidget {
     required this.onQuote,
     required this.onInlineCode,
     required this.onLink,
+    required this.onTable,
   });
 
   @override
@@ -1541,6 +1573,11 @@ class _RichTextToolbar extends StatelessWidget {
               tooltip: strings.link,
               icon: Icons.link,
               onPressed: onLink,
+            ),
+            _FormatToolButton(
+              tooltip: strings.insertTable,
+              icon: Icons.table_chart_outlined,
+              onPressed: onTable,
             ),
           ],
         ),

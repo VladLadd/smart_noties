@@ -18,6 +18,7 @@ class AppStrings {
   const AppStrings(this.language);
 
   bool get _ru => language == AppLanguage.ru;
+  bool get isRussian => _ru;
 
   String get languageLabel => _ru ? 'Язык' : 'Language';
   String get russian => _ru ? 'Русский' : 'Russian';
@@ -161,6 +162,7 @@ class AppStrings {
   String get quote => _ru ? 'Цитата' : 'Quote';
   String get inlineCode => _ru ? 'Код' : 'Code';
   String get link => _ru ? 'Ссылка' : 'Link';
+  String get insertTable => _ru ? 'Вставить таблицу' : 'Insert table';
   String get formattedTextPreview => _ru
       ? 'Здесь будет предпросмотр форматированного текста'
       : 'Formatted text preview will appear here';
@@ -255,6 +257,27 @@ class AppStrings {
   String get play => _ru ? 'Воспроизвести' : 'Play';
 
   String get notesCount => _ru ? 'Заметок' : 'Notes';
+  String get storageUsage => _ru ? 'Хранилище заметок' : 'Notes storage';
+  String get storageLoading =>
+      _ru ? 'Загрузка размера хранилища…' : 'Loading storage usage…';
+  String get storageUnavailable =>
+      _ru ? 'Размер хранилища недоступен' : 'Storage usage unavailable';
+  String get storageUsed => _ru ? 'Использовано' : 'Used';
+  String get avatarOptions => _ru ? 'Настройки аватара' : 'Avatar options';
+  String get addAvatar => _ru ? 'Добавить фото' : 'Add photo';
+  String get replaceAvatar => _ru ? 'Заменить фото' : 'Replace photo';
+  String get removeAvatar => _ru ? 'Удалить фото' : 'Remove photo';
+  String get removeAvatarTitle => _ru ? 'Удалить аватар?' : 'Remove avatar?';
+  String get removeAvatarMessage => _ru
+      ? 'Фото профиля будет удалено.'
+      : 'Your profile photo will be removed.';
+  String get avatarUpdated =>
+      _ru ? 'Фото профиля обновлено' : 'Profile photo updated';
+  String get avatarRemoved =>
+      _ru ? 'Фото профиля удалено' : 'Profile photo removed';
+  String get avatarLoadFailed => _ru
+      ? 'Не удалось загрузить фото профиля'
+      : 'Could not load profile photo';
   String get needAuth => _ru ? 'Нужна авторизация' : 'Authorization required';
   String get requestSentToAdmin =>
       _ru ? 'Запрос отправлен администратору' : 'Request sent to admin';
@@ -282,6 +305,19 @@ class AppStrings {
   String get revoked => _ru ? 'Отозван' : 'Revoked';
   String get nfcKeyRevoked =>
       _ru ? 'Карта отозвана администратором' : 'Card revoked by administrator';
+  String get revoke => _ru ? 'Отозвать' : 'Revoke';
+  String get revokeAllNfcTokens =>
+      _ru ? 'Отозвать все NFC-токены' : 'Revoke all NFC tokens';
+  String get revokeAllNfcTokensTitle =>
+      _ru ? 'Отозвать все NFC-токены?' : 'Revoke all NFC tokens?';
+  String revokeAllNfcTokensMessage(int count) => _ru
+      ? 'Будут отозваны все активные NFC-токены ($count). Они больше не смогут открывать скрытые заметки.'
+      : 'All active NFC tokens ($count) will be revoked. They will no longer open hidden notes.';
+  String nfcTokensRevoked(int count) =>
+      _ru ? 'Отозвано NFC-токенов: $count' : 'NFC tokens revoked: $count';
+  String nfcTokensRevokedWithErrors(int revoked, int failed) => _ru
+      ? 'Отозвано: $revoked. Не удалось отозвать: $failed.'
+      : 'Revoked: $revoked. Failed: $failed.';
   String approvedAt(String value) =>
       _ru ? 'Одобрено $value' : 'Approved $value';
   String rejectedAt(String value) =>

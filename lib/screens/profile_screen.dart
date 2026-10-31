@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
+import '../models/nfc_key_model.dart';
 import '../models/nfc_token_request_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/notes_provider.dart';
 import '../services/nfc_admin_service.dart';
+import '../services/api_config.dart';
+import '../services/profile_service.dart';
+
+enum _AvatarAction { choose, remove }
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,15 +23,139 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nfcService = NfcAdminService();
+  final _profileService = ProfileService();
+  final _imagePicker = ImagePicker();
   List<NfcTokenRequest> _tokenRequests = const [];
+  List<NfcKey> _nfcKeys = const [];
+  String? _avatarUrl;
+  String? _avatarError;
+  int _storageUsedBytes = 0;
+  int _storageLimitBytes = 2 * 1024 * 1024 * 1024;
+  bool _storageLoading = true;
+  bool _storageAvailable = false;
+  bool _avatarBusy = false;
   bool _loadingRequests = true;
   bool _requestingToken = false;
+  bool _revokingAllNfcTokens = false;
   String? _nfcError;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTokenRequests());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTokenRequests();
+      _loadProfile();
+    });
+  }
+
+  Future<void> _loadProfile() async {
+    final token = context.read<AuthProvider>().token;
+    if (token == null || token.isEmpty) return;
+    try {
+      final profile = await _profileService.fetchProfile(token: token);
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = profile.avatarUrl;
+        _storageUsedBytes = profile.storageUsedBytes;
+        if (profile.storageLimitBytes > 0) {
+          _storageLimitBytes = profile.storageLimitBytes;
+        }
+        _avatarError = null;
+        _storageLoading = false;
+        _storageAvailable = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _avatarError = e.toString();
+        _storageLoading = false;
+        _storageAvailable = false;
+      });
+    }
+  }
+
+  Future<void> _chooseAvatar() async {
+    if (_avatarBusy) return;
+    final strings = context.readStrings;
+    final token = context.read<AuthProvider>().token;
+    if (token == null || token.isEmpty) return;
+
+    try {
+      final file = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (!mounted || file == null) return;
+
+      setState(() {
+        _avatarBusy = true;
+        _avatarError = null;
+      });
+      final avatarUrl = await _profileService.uploadAvatar(
+        token: token,
+        file: file,
+      );
+      if (!mounted) return;
+      setState(() => _avatarUrl = avatarUrl);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.avatarUpdated)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarBusy = false);
+    }
+  }
+
+  Future<void> _removeAvatar() async {
+    if (_avatarBusy || _avatarUrl == null) return;
+    final strings = context.readStrings;
+    final token = context.read<AuthProvider>().token;
+    if (token == null || token.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.removeAvatarTitle),
+        content: Text(strings.removeAvatarMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(strings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(strings.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _avatarBusy = true;
+      _avatarError = null;
+    });
+    try {
+      await _profileService.deleteAvatar(token: token);
+      if (!mounted) return;
+      setState(() => _avatarUrl = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.avatarRemoved)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarBusy = false);
+    }
   }
 
   Future<void> _loadTokenRequests() async {
@@ -45,8 +175,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     try {
       final requests = await _nfcService.fetchMyTokenRequests(token: token);
+      final keys = await _nfcService.fetchMyKeys(token: token);
+      final revokedKeyIds =
+          keys.where((key) => !key.isActive).map((key) => key.id).toSet();
+      final reconciledRequests = requests.map((request) {
+        if (request.nfcKeyId.isNotEmpty &&
+            revokedKeyIds.contains(request.nfcKeyId)) {
+          return request.copyWith(status: 'revoked', ndefUri: '');
+        }
+        return request;
+      }).toList();
       if (!mounted) return;
-      setState(() => _tokenRequests = requests);
+      setState(() {
+        _tokenRequests = reconciledRequests;
+        _nfcKeys = keys;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _nfcError = e.toString());
@@ -127,6 +270,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _revokeAllNfcTokens() async {
+    if (_revokingAllNfcTokens) return;
+    final activeKeys = _nfcKeys.where((key) => key.isActive).toList();
+    if (activeKeys.isEmpty) return;
+
+    final strings = context.readStrings;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.revokeAllNfcTokensTitle),
+        content: Text(strings.revokeAllNfcTokensMessage(activeKeys.length)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(strings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(strings.revoke),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final token = context.read<AuthProvider>().token;
+    if (token == null || token.isEmpty) return;
+
+    setState(() => _revokingAllNfcTokens = true);
+    var revokedCount = 0;
+    for (final key in activeKeys) {
+      try {
+        await _nfcService.revokeMyKey(token: token, keyId: key.id);
+        revokedCount++;
+      } catch (_) {
+        // Продолжаем отзывать остальные ключи, даже если один запрос не прошёл.
+      }
+    }
+
+    await _loadTokenRequests();
+    if (!mounted) return;
+    final failedCount = activeKeys.length - revokedCount;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          failedCount == 0
+              ? strings.nfcTokensRevoked(revokedCount)
+              : strings.nfcTokensRevokedWithErrors(revokedCount, failedCount),
+        ),
+      ),
+    );
+    setState(() => _revokingAllNfcTokens = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final email = context.watch<AuthProvider>().email;
@@ -142,12 +339,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 8),
-              const Center(
-                child: CircleAvatar(
-                  radius: 44,
-                  child: Icon(Icons.person, size: 48),
+              _buildAvatar(context),
+              if (_avatarError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  strings.avatarLoadFailed,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 32),
               _InfoTile(
                 icon: Icons.email_outlined,
@@ -161,17 +364,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: '$notesCount',
               ),
               const SizedBox(height: 12),
+              _StorageUsageCard(
+                usedBytes: _storageUsedBytes,
+                limitBytes: _storageLimitBytes,
+                loading: _storageLoading,
+                available: _storageAvailable,
+              ),
+              const SizedBox(height: 12),
               const _LanguageSelectorTile(),
               const SizedBox(height: 20),
               _NfcTokenSection(
                 requests: _tokenRequests,
+                activeKeyCount: _nfcKeys.where((key) => key.isActive).length,
                 loading: _loadingRequests,
                 requesting: _requestingToken,
+                revokingAll: _revokingAllNfcTokens,
                 error: _nfcError,
                 onRefresh: _loadTokenRequests,
                 onRequest: _requestToken,
                 onCopy: _copyToken,
                 onConsume: _consumeToken,
+                onRevokeAll: _revokeAllNfcTokens,
               ),
               const SizedBox(height: 28),
               OutlinedButton.icon(
@@ -189,6 +402,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 12),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(BuildContext context) {
+    final strings = context.strings;
+    final token = context.read<AuthProvider>().token;
+    final avatarProvider = _avatarUrl == null
+        ? null
+        : NetworkImage(
+            resolveMediaUrl(_avatarUrl!),
+            headers: token == null ? null : {'Authorization': 'Bearer $token'},
+          );
+
+    return Center(
+      child: PopupMenuButton<_AvatarAction>(
+        enabled: !_avatarBusy,
+        tooltip: strings.avatarOptions,
+        onSelected: (action) {
+          if (action == _AvatarAction.choose) {
+            _chooseAvatar();
+          } else {
+            _removeAvatar();
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: _AvatarAction.choose,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(
+                _avatarUrl == null ? strings.addAvatar : strings.replaceAvatar,
+              ),
+            ),
+          ),
+          if (_avatarUrl != null)
+            PopupMenuItem(
+              value: _AvatarAction.remove,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.delete_outline),
+                title: Text(strings.removeAvatar),
+              ),
+            ),
+        ],
+        child: Stack(
+          children: [
+            CircleAvatar(
+              radius: 44,
+              backgroundImage: avatarProvider,
+              onBackgroundImageError: avatarProvider == null
+                  ? null
+                  : (_, __) {
+                      if (mounted) setState(() => _avatarError = 'image');
+                    },
+              child: _avatarUrl == null
+                  ? const Icon(Icons.person, size: 48)
+                  : null,
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                child: _avatarBusy
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      )
+                    : Icon(
+                        Icons.photo_camera_outlined,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -333,23 +630,29 @@ class _LanguageSelectorTile extends StatelessWidget {
 
 class _NfcTokenSection extends StatelessWidget {
   final List<NfcTokenRequest> requests;
+  final int activeKeyCount;
   final bool loading;
   final bool requesting;
+  final bool revokingAll;
   final String? error;
   final VoidCallback onRefresh;
   final VoidCallback onRequest;
   final ValueChanged<NfcTokenRequest> onCopy;
   final ValueChanged<NfcTokenRequest> onConsume;
+  final VoidCallback onRevokeAll;
 
   const _NfcTokenSection({
     required this.requests,
+    required this.activeKeyCount,
     required this.loading,
     required this.requesting,
+    required this.revokingAll,
     required this.error,
     required this.onRefresh,
     required this.onRequest,
     required this.onCopy,
     required this.onConsume,
+    required this.onRevokeAll,
   });
 
   @override
@@ -424,6 +727,24 @@ class _NfcTokenSection extends StatelessWidget {
                 : const Icon(Icons.add_card),
             label: Text(strings.requestNfcToken),
           ),
+          if (activeKeyCount > 0) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: loading || revokingAll ? null : onRevokeAll,
+              icon: revokingAll
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_outline),
+              label: Text(strings.revokeAllNfcTokens),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: scheme.error,
+                side: BorderSide(color: scheme.error),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -593,6 +914,117 @@ class _InlineError extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(message, style: TextStyle(color: Colors.red[700]));
   }
+}
+
+class _StorageUsageCard extends StatelessWidget {
+  final int usedBytes;
+  final int limitBytes;
+  final bool loading;
+  final bool available;
+
+  const _StorageUsageCard({
+    required this.usedBytes,
+    required this.limitBytes,
+    required this.loading,
+    required this.available,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.strings;
+    final scheme = Theme.of(context).colorScheme;
+    final safeLimit = limitBytes > 0 ? limitBytes : 1;
+    final ratio = (usedBytes / safeLimit).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.storage_outlined,
+              size: 24, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  strings.storageUsage,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: loading || !available ? null : ratio,
+                    minHeight: 9,
+                    backgroundColor: scheme.surface,
+                    color: ratio >= 0.9 ? scheme.error : scheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        loading
+                            ? strings.storageLoading
+                            : !available
+                                ? strings.storageUnavailable
+                                : '${strings.storageUsed}: ${_formatStorageSize(usedBytes, strings.isRussian)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: scheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _formatStorageSize(limitBytes, strings.isRussian),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatStorageSize(int bytes, bool isRussian) {
+  const kibibyte = 1024;
+  const mebibyte = kibibyte * 1024;
+  const gibibyte = mebibyte * 1024;
+  final units =
+      isRussian ? const ['Б', 'КБ', 'МБ', 'ГБ'] : const ['B', 'KB', 'MB', 'GB'];
+  if (bytes >= gibibyte) {
+    final value = bytes / gibibyte;
+    return '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1)} ${units[3]}';
+  }
+  if (bytes >= mebibyte) {
+    final value = bytes / mebibyte;
+    return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} ${units[2]}';
+  }
+  if (bytes >= kibibyte) {
+    final value = bytes / kibibyte;
+    return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} ${units[1]}';
+  }
+  return '$bytes ${units[0]}';
 }
 
 class _InfoTile extends StatelessWidget {
