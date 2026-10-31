@@ -8,6 +8,7 @@ import 'models/nfc_token_request_model.dart';
 import 'services/auth_service.dart';
 import 'services/nfc_admin_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/web_max_width.dart';
 
 void main() {
   runApp(const SmartNotesAdminApp());
@@ -51,6 +52,9 @@ class _SmartNotesAdminAppState extends State<SmartNotesAdminApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+      builder: (context, child) => WebMaxWidth(
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: _token == null || _user == null
           ? _AdminLoginScreen(
               onLoggedIn: _onLoggedIn,

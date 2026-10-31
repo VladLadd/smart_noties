@@ -12,6 +12,7 @@ import 'providers/auth_provider.dart';
 import 'screens/notes_grid_screen.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/web_max_width.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +48,9 @@ class SmartNotesApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: ThemeMode.system,
+            builder: (context, child) => WebMaxWidth(
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: const _FaceDownHiddenNotesLock(
               child: _HomeRouter(),
             ),
