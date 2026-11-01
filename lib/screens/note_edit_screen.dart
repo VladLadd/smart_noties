@@ -217,28 +217,38 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Future<void> _addPhotos() async {
-    final source = await _showImageSourceSheet(
-      title: context.readStrings.notePhotos,
-      allowGalleryMultiple: true,
-    );
-    if (source == null) return;
+    try {
+      final source = await _showImageSourceSheet(
+        title: context.readStrings.notePhotos,
+        allowGalleryMultiple: true,
+      );
+      if (source == null || !mounted) return;
 
-    if (source == ImageSource.camera) {
-      final picked =
-          await ImagePicker().pickImage(source: source, imageQuality: 85);
-      if (picked != null) {
+      if (source == ImageSource.camera) {
+        final picked =
+            await ImagePicker().pickImage(source: source, imageQuality: 85);
+        if (picked != null && mounted) {
+          setState(
+            () => _photos.add(_EditableImage(path: picked.path, file: picked)),
+          );
+        }
+        return;
+      }
+
+      final picked = await ImagePicker().pickMultiImage(imageQuality: 85);
+      if (picked.isNotEmpty && mounted) {
         setState(
-          () => _photos.add(_EditableImage(path: picked.path, file: picked)),
+          () => _photos.addAll(
+            picked.map((file) => _EditableImage(path: file.path, file: file)),
+          ),
         );
       }
-      return;
-    }
-
-    final picked = await ImagePicker().pickMultiImage(imageQuality: 85);
-    if (picked.isNotEmpty) {
-      setState(
-        () => _photos.addAll(
-          picked.map((file) => _EditableImage(path: file.path, file: file)),
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Не удалось выбрать фотографии: $error'),
+          backgroundColor: Colors.red[700],
         ),
       );
     }
@@ -396,14 +406,27 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         provider,
       );
       final uploadedPhotoPaths = <String>[];
-      for (final photo in photos) {
+      for (var index = 0; index < photos.length; index++) {
+        final photo = photos[index];
         final uploaded = await _uploadImagePath(
           photo.path,
           photo.file,
           auth,
           provider,
+          rethrowOnFailure: true,
         );
-        if (uploaded != null) uploadedPhotoPaths.add(uploaded);
+        if (uploaded != null) {
+          uploadedPhotoPaths.add(uploaded);
+          if (uploaded != photo.path) {
+            final uploadedPhoto = _EditableImage(path: uploaded);
+            photos[index] = uploadedPhoto;
+            final currentIndex = _photos.indexOf(photo);
+            if (currentIndex != -1) {
+              _photos[currentIndex] = uploadedPhoto;
+              if (mounted) setState(() {});
+            }
+          }
+        }
       }
       final photoPaths = uploadedPhotoPaths;
 
@@ -494,8 +517,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     String? path,
     XFile? pickedFile,
     AuthProvider auth,
-    NotesProvider provider,
-  ) async {
+    NotesProvider provider, {
+    bool rethrowOnFailure = false,
+  }) async {
     if (path == null || path.isEmpty || path.startsWith('assets/')) {
       return path;
     }
@@ -521,6 +545,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         mediaPassword: _isProtected ? _protectionPassword : null,
       );
     } catch (_) {
+      if (rethrowOnFailure) rethrow;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -862,7 +887,11 @@ class _NoteEditScreenState extends State<NoteEditScreen>
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image(
-                  image: _imageProviderForPath(path),
+                  image: ResizeImage(
+                    _imageProviderForPath(path),
+                    width: 512,
+                    height: 512,
+                  ),
                   fit: BoxFit.cover,
                 ),
               ),

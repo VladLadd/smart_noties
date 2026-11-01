@@ -56,11 +56,6 @@ class StartScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const Positioned(
-              bottom: 130,
-              right: 28,
-              child: Icon(Icons.arrow_downward, size: 48),
-            ),
             Positioned(
               bottom: 60,
               right: 24,
