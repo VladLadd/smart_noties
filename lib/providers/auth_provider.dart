@@ -49,21 +49,29 @@ class AuthProvider extends ChangeNotifier {
     _startSessionMonitor();
   }
 
-  Future<void> register({
+  Future<void> requestEmailRegistrationCode({
     required String name,
     required String email,
     required String password,
     String phone = '',
   }) async {
-    await _service.register(
+    await _service.requestEmailRegistrationCode(
       name: name,
       email: email,
       password: password,
       phone: phone,
     );
-    // Бэкенд /api/users не возвращает токен — сразу логинимся теми же
-    // учётными данными, чтобы после регистрации юзер был авторизован.
-    await login(email: email, password: password);
+  }
+
+  Future<void> verifyEmailRegistrationCode({
+    required String email,
+    required String code,
+  }) async {
+    final result = await _service.verifyEmailRegistrationCode(
+      email: email,
+      code: code,
+    );
+    await _persist(result);
   }
 
   Future<void> login({required String email, required String password}) async {

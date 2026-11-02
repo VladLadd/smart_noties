@@ -68,7 +68,7 @@ class AuthService {
     );
   }
 
-  Future<({String token, AuthUser user})> register({
+  Future<void> requestEmailRegistrationCode({
     required String name,
     required String email,
     required String password,
@@ -76,7 +76,7 @@ class AuthService {
   }) async {
     final response = await http
         .post(
-          Uri.parse('$_baseUrl/api/users'),
+          Uri.parse('$_baseUrl/api/auth/email/register/request-code'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'name': name,
@@ -84,6 +84,21 @@ class AuthService {
             'phone': phone,
             'password': password,
           }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _parseMessageResponse(response);
+  }
+
+  Future<({String token, AuthUser user})> verifyEmailRegistrationCode({
+    required String email,
+    required String code,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/api/auth/email/register/verify-code'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'code': code}),
         )
         .timeout(const Duration(seconds: 15));
 

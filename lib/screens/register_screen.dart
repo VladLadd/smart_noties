@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
+import 'email_registration_code_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -35,16 +36,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await context.read<AuthProvider>().register(
-            name: _nameCtrl.text.trim(),
-            email: _emailCtrl.text.trim(),
-            phone: _phoneCtrl.text.trim(),
-            password: _passwordCtrl.text,
+      final name = _nameCtrl.text.trim();
+      final email = _emailCtrl.text.trim();
+      final phone = _phoneCtrl.text.trim();
+      final password = _passwordCtrl.text;
+      await context.read<AuthProvider>().requestEmailRegistrationCode(
+            name: name,
+            email: email,
+            phone: phone,
+            password: password,
           );
       if (!mounted) return;
-      // После register() юзер уже авторизован (AuthProvider.status == authenticated).
-      // Возвращаемся к корню — _HomeRouter покажет экран заметок/старта.
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EmailRegistrationCodeScreen(
+            name: name,
+            email: email,
+            phone: phone,
+            password: password,
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -164,7 +176,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           )
                         : Text(
-                            strings.createAccountButton,
+                            strings.sendVerificationCode,
                             style: const TextStyle(fontSize: 16),
                           ),
                   ),

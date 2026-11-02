@@ -119,8 +119,6 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     super.dispose();
   }
 
-  bool get _hasImage => _coverImagePath != null && _coverImagePath!.isNotEmpty;
-
   Future<void> _requestUnlock() async {
     final note = widget.initialNote;
     if (note == null || !_isLocked) return;
@@ -171,32 +169,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     }
   }
 
-  Future<void> _onColorSelected(Color color) async {
-    if (_hasImage) {
-      final strings = context.readStrings;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(strings.replaceImageQuestion),
-          content: Text(strings.replaceImageMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(strings.cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(
-                strings.replace,
-                style: const TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-      setState(() => _coverImagePath = null);
-    }
+  void _onColorSelected(Color color) {
     setState(() => _selectedColor = color);
   }
 

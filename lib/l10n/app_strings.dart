@@ -30,6 +30,9 @@ class AppStrings {
   String get accountBlocked => _ru
       ? 'Аккаунт заблокирован администратором. Обратитесь в поддержку.'
       : 'This account is blocked by an administrator. Contact support.';
+  String get phoneAccountRequiresRegistration => _ru
+      ? 'Аккаунт с этим номером не найден. Сначала зарегистрируйтесь по email.'
+      : 'No account uses this phone number. Register with your email first.';
   String get cancel => _ru ? 'Отмена' : 'Cancel';
   String get hide => _ru ? 'Скрыть' : 'Hide';
   String get open => _ru ? 'Открыть' : 'Open';
@@ -64,6 +67,18 @@ class AppStrings {
   String get register => _ru ? 'Зарегистрироваться' : 'Create one';
   String get createAccount => _ru ? 'Создать\nаккаунт' : 'Create\naccount';
   String get createAccountButton => _ru ? 'Создать аккаунт' : 'Create account';
+  String get sendVerificationCode =>
+      _ru ? 'Получить код на email' : 'Send email code';
+  String get emailVerificationCodeTitle =>
+      _ru ? 'Подтвердите\nemail' : 'Verify your\nemail';
+  String emailVerificationCodeSent(String email) => _ru
+      ? 'Код подтверждения отправлен на $email'
+      : 'A verification code was sent to $email';
+  String get emailVerificationCode =>
+      _ru ? 'Код из письма' : 'Email verification code';
+  String get emailVerificationHelp => _ru
+      ? 'Введите 6-значный код из письма. Он действует 5 минут.'
+      : 'Enter the 6-digit code from the email. It expires in 5 minutes.';
   String get registerSubtitle =>
       _ru ? 'Зарегистрируйтесь, чтобы начать' : 'Register to get started';
   String get alreadyHaveAccount =>
@@ -137,11 +152,6 @@ class AppStrings {
   String get deleteNote => _ru ? 'Удалить заметку' : 'Delete note';
   String get noteWillBeDeleted =>
       _ru ? 'Заметка будет удалена.' : 'The note will be deleted.';
-  String get replaceImageQuestion =>
-      _ru ? 'Заменить картинку?' : 'Replace image?';
-  String get replaceImageMessage => _ru
-      ? 'Выбранный цвет заменит текущее изображение заметки.'
-      : 'The selected color will replace the current note image.';
   String get coverImage => _ru ? 'Обложка заметки' : 'Note cover';
   String get notePhotos => _ru ? 'Фотографии заметки' : 'Note photos';
   String get takePhoto => _ru ? 'Сделать фото' : 'Take photo';

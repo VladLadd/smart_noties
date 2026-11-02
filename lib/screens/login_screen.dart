@@ -58,7 +58,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       final message = e is AuthException && e.code == 'account_blocked'
           ? context.readStrings.accountBlocked
-          : e.toString();
+          : e is AuthException && e.code == 'account_not_found'
+              ? context.readStrings.phoneAccountRequiresRegistration
+              : e.toString();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red[700]),
       );
