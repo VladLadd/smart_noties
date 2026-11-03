@@ -54,6 +54,13 @@ class AppStrings {
   String get phoneNumber => _ru ? 'Номер телефона' : 'Phone number';
   String get password => _ru ? 'Пароль' : 'Password';
   String get newPassword => _ru ? 'Новый пароль' : 'New password';
+  String get linkEmail => _ru ? 'Добавить email' : 'Add email';
+  String get linkEmailTitle => _ru ? 'Привязать email' : 'Link email';
+  String get linkEmailPasswordHint => _ru
+      ? 'Задайте пароль для входа по email'
+      : 'Set a password for email sign-in';
+  String get emailLinked => _ru ? 'Email привязан' : 'Email linked';
+  String get phoneNotAdded => _ru ? 'Не добавлен' : 'Not added';
   String get confirmPassword => _ru ? 'Подтвердите пароль' : 'Confirm password';
   String get name => _ru ? 'Имя' : 'Name';
 

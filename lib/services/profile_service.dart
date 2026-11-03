@@ -20,10 +20,42 @@ class ProfileService {
     final json = _decode(response);
     final value = json['avatarUrl']?.toString() ?? '';
     return ProfileSnapshot(
+      email: json['email']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
       avatarUrl: value.isEmpty ? null : value,
       storageUsedBytes: _readInt(json['storageUsedBytes']),
       storageLimitBytes: _readInt(json['storageLimitBytes']),
     );
+  }
+
+  Future<void> requestEmailLinkCode({
+    required String token,
+    required String email,
+    required String password,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$apiBaseUrl/api/profile/email/request-code'),
+          headers: {..._headers(token), 'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 20));
+    _decode(response);
+  }
+
+  Future<void> verifyEmailLinkCode({
+    required String token,
+    required String email,
+    required String code,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$apiBaseUrl/api/profile/email/verify-code'),
+          headers: {..._headers(token), 'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'code': code}),
+        )
+        .timeout(const Duration(seconds: 20));
+    _decode(response);
   }
 
   Future<String> uploadAvatar({
@@ -82,11 +114,15 @@ class ProfileService {
 }
 
 class ProfileSnapshot {
+  final String email;
+  final String phone;
   final String? avatarUrl;
   final int storageUsedBytes;
   final int storageLimitBytes;
 
   const ProfileSnapshot({
+    required this.email,
+    required this.phone,
     required this.avatarUrl,
     required this.storageUsedBytes,
     required this.storageLimitBytes,

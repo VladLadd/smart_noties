@@ -28,6 +28,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<NfcTokenRequest> _tokenRequests = const [];
   List<NfcKey> _nfcKeys = const [];
   String? _avatarUrl;
+  String _profileEmail = '';
+  String _profilePhone = '';
   String? _avatarError;
   int _storageUsedBytes = 0;
   int _storageLimitBytes = 2 * 1024 * 1024 * 1024;
@@ -55,6 +57,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final profile = await _profileService.fetchProfile(token: token);
       if (!mounted) return;
       setState(() {
+        _profileEmail = profile.email;
+        _profilePhone = profile.phone;
         _avatarUrl = profile.avatarUrl;
         _storageUsedBytes = profile.storageUsedBytes;
         if (profile.storageLimitBytes > 0) {
@@ -71,6 +75,119 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _storageLoading = false;
         _storageAvailable = false;
       });
+    }
+  }
+
+  Future<void> _linkEmail() async {
+    final strings = context.strings;
+    final token = context.read<AuthProvider>().token;
+    if (token == null || token.isEmpty) return;
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final codeController = TextEditingController();
+    var codeSent = false;
+    var busy = false;
+    String? error;
+    final linkedEmail = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(strings.linkEmailTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                enabled: !codeSent && !busy,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(labelText: strings.email),
+              ),
+              if (!codeSent)
+                TextField(
+                  controller: passwordController,
+                  enabled: !busy,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: strings.newPassword,
+                    helperText: strings.linkEmailPasswordHint,
+                  ),
+                ),
+              if (codeSent)
+                TextField(
+                  controller: codeController,
+                  enabled: !busy,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration:
+                      InputDecoration(labelText: strings.emailVerificationCode),
+                ),
+              if (error != null)
+                Text(error!,
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogContext),
+              child: Text(strings.cancel),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setDialogState(() {
+                        busy = true;
+                        error = null;
+                      });
+                      try {
+                        if (!codeSent) {
+                          await _profileService.requestEmailLinkCode(
+                            token: token,
+                            email: emailController.text.trim(),
+                            password: passwordController.text,
+                          );
+                          setDialogState(() {
+                            codeSent = true;
+                            busy = false;
+                          });
+                        } else {
+                          await _profileService.verifyEmailLinkCode(
+                            token: token,
+                            email: emailController.text.trim(),
+                            code: codeController.text.trim(),
+                          );
+                          if (dialogContext.mounted) {
+                            Navigator.pop(
+                                dialogContext, emailController.text.trim());
+                          }
+                        }
+                      } catch (e) {
+                        setDialogState(() {
+                          error = e.toString();
+                          busy = false;
+                        });
+                      }
+                    },
+              child: Text(busy
+                  ? strings.sending
+                  : codeSent
+                      ? strings.confirm
+                      : strings.sendVerificationCode),
+            ),
+          ],
+        ),
+      ),
+    );
+    emailController.dispose();
+    passwordController.dispose();
+    codeController.dispose();
+    if (linkedEmail != null && mounted) {
+      setState(() => _profileEmail = linkedEmail);
+      context.read<AuthProvider>().updateProfileEmail(linkedEmail);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.emailLinked)),
+      );
     }
   }
 
@@ -326,7 +443,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final email = context.watch<AuthProvider>().email;
     final notesCount = context.watch<NotesProvider>().notes.length;
     final strings = context.strings;
 
@@ -355,8 +471,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _InfoTile(
                 icon: Icons.email_outlined,
                 label: strings.email,
-                value: (email != null && email.isNotEmpty) ? email : '—',
+                value: _profileEmail.isNotEmpty ? _profileEmail : '—',
               ),
+              const SizedBox(height: 12),
+              _InfoTile(
+                icon: Icons.phone_outlined,
+                label: strings.phone,
+                value: _profilePhone.isNotEmpty
+                    ? _profilePhone
+                    : strings.phoneNotAdded,
+              ),
+              if (_profileEmail.isEmpty && _profilePhone.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _linkEmail,
+                    icon: const Icon(Icons.add),
+                    label: Text(strings.linkEmail),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               _InfoTile(
                 icon: Icons.notes_outlined,

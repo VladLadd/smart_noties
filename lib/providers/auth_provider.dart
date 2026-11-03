@@ -113,6 +113,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateProfileEmail(String value) {
+    email = value;
+    notifyListeners();
+  }
+
   Future<void> _persist(({String token, AuthUser user}) result) async {
     token = result.token;
     user = result.user;
