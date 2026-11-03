@@ -122,7 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       InputDecoration(labelText: strings.emailVerificationCode),
                 ),
               if (error != null)
-                Text(error!,
+                Text(strings.errorMessage(error!),
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
@@ -164,7 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         }
                       } catch (e) {
                         setDialogState(() {
-                          error = e.toString();
+                          error = strings.errorMessage(e);
                           busy = false;
                         });
                       }
@@ -222,7 +222,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(content: Text(strings.errorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _avatarBusy = false);
@@ -268,7 +268,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(content: Text(context.readStrings.errorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _avatarBusy = false);
@@ -309,7 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _nfcError = e.toString());
+      setState(() => _nfcError = context.readStrings.errorMessage(e));
     } finally {
       if (mounted) setState(() => _loadingRequests = false);
     }
@@ -336,7 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _nfcError = e.toString());
+      setState(() => _nfcError = context.readStrings.errorMessage(e));
     } finally {
       if (mounted) setState(() => _requestingToken = false);
     }
@@ -383,7 +383,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _loadTokenRequests();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _nfcError = e.toString());
+      setState(() => _nfcError = context.readStrings.errorMessage(e));
     }
   }
 

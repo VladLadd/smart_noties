@@ -37,7 +37,7 @@ jobs:
         run: |
           flutter build web --release \
             --base-href /app/ \
-            --dart-define=API_BASE_URL=https://86.110.191.206 \
+            --dart-define=API_BASE_URL=https://s-notes.ru \
             --no-wasm-dry-run
 
       - name: Upload web artifact

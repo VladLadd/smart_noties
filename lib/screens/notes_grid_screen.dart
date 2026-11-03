@@ -188,7 +188,9 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       } catch (e) {
         if (!mounted) return;
         messenger.showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+          SnackBar(
+              content: Text(context.readStrings.errorMessage(e)),
+              backgroundColor: Colors.red[700]),
         );
         return;
       }
@@ -609,7 +611,9 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       if (dialogOpen) Navigator.of(context, rootNavigator: true).pop();
       if (!e.toString().contains('Сканирование отменено')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+          SnackBar(
+              content: Text(context.readStrings.errorMessage(e)),
+              backgroundColor: Colors.red[700]),
         );
       }
     } finally {

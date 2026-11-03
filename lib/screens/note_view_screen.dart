@@ -89,7 +89,9 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+        SnackBar(
+            content: Text(context.readStrings.errorMessage(e)),
+            backgroundColor: Colors.red[700]),
       );
     }
   }
@@ -435,7 +437,9 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
       if (!mounted) return;
       setState(() => _savingDrawing = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+        SnackBar(
+            content: Text(context.readStrings.errorMessage(e)),
+            backgroundColor: Colors.red[700]),
       );
     }
   }

@@ -46,7 +46,7 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
       _showError(
         e is AuthException && e.code == 'account_blocked'
             ? context.readStrings.accountBlocked
-            : e.toString(),
+            : context.readStrings.errorMessage(e),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -66,7 +66,7 @@ class _SMSCodeScreenState extends State<SMSCodeScreen> {
       _showError(
         e is AuthException && e.code == 'account_blocked'
             ? context.readStrings.accountBlocked
-            : e.toString(),
+            : context.readStrings.errorMessage(e),
       );
     } finally {
       if (mounted) setState(() => _resending = false);

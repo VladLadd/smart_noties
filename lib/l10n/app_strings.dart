@@ -346,4 +346,71 @@ class AppStrings {
   String createdAt(String value) => _ru ? 'Создано $value' : 'Created $value';
 
   String get chooseColor => _ru ? 'Выберите цвет' : 'Choose color';
+
+  String errorMessage(Object error) {
+    var message = error.toString().trim();
+    message = message.replaceFirst(
+      RegExp(r'^(?:Exception|Bad state|ProfileException|AuthException):\s*'),
+      '',
+    );
+    if (!_ru) return message;
+
+    final normalized = message.toLowerCase();
+    const translations = <String, String>{
+      'title required': 'Заголовок обязателен',
+      'invalid credentials': 'Неверный email или пароль',
+      'unauthorized': 'Сессия истекла. Войдите в аккаунт снова.',
+      'session_invalid': 'Сессия истекла. Войдите в аккаунт снова.',
+      'account_blocked': 'Аккаунт заблокирован администратором.',
+      'account_not_found': 'Аккаунт с таким номером не найден.',
+      'invalid json': 'Не удалось обработать данные запроса.',
+      'name, email and password required': 'Заполните имя, email и пароль.',
+      'invalid registration data': 'Проверьте данные регистрации.',
+      'note not found': 'Заметка не найдена.',
+      'cannot create note': 'Не удалось сохранить заметку.',
+      'cannot update note': 'Не удалось обновить заметку.',
+      'cannot load notes': 'Не удалось загрузить заметки.',
+      'cannot delete note': 'Не удалось удалить заметку.',
+      'invalid nfc key': 'NFC-токен недействителен или отозван.',
+      'nfc key not found': 'NFC-токен не найден.',
+      'email already registered': 'Этот email уже используется.',
+      'phone already registered': 'Этот номер телефона уже используется.',
+      'invalid email': 'Некорректный email.',
+      'wrong password': 'Неверный пароль.',
+      'password required': 'Введите пароль.',
+      'code not found or expired': 'Код не найден или срок его действия истёк.',
+      'код не найден или истёк': 'Код не найден или срок его действия истёк.',
+      'неверный код': 'Неверный код подтверждения.',
+      'invalid code': 'Неверный код подтверждения.',
+      'cannot unlock hidden notes': 'Не удалось открыть скрытые заметки.',
+      'storage limit exceeded': 'Превышен лимит места для заметок.',
+      'cannot load nfc keys': 'Не удалось загрузить NFC-токены.',
+      'cannot create nfc key': 'Не удалось создать NFC-токен.',
+      'cannot revoke nfc key': 'Не удалось отозвать NFC-токен.',
+      'cannot load profile': 'Не удалось загрузить профиль.',
+      'cannot update profile email': 'Не удалось обновить email профиля.',
+      'cannot finish email verification': 'Не удалось подтвердить email.',
+      'cannot check verification status': 'Не удалось проверить статус кода.',
+      'cannot save verification code':
+          'Не удалось отправить код подтверждения.',
+      'smtp': 'Не удалось отправить письмо. Попробуйте позже.',
+      'failed to fetch': 'Нет соединения с сервером. Проверьте интернет.',
+      'clientexception': 'Нет соединения с сервером. Проверьте интернет.',
+    };
+    for (final entry in translations.entries) {
+      if (normalized.contains(entry.key)) return entry.value;
+    }
+    if (RegExp(r'[А-Яа-яЁё]').hasMatch(message)) return message;
+    if (normalized.startsWith('http 401')) {
+      return 'Сессия истекла. Войдите в аккаунт снова.';
+    }
+    if (normalized.startsWith('http 413')) {
+      return 'Файл слишком большой.';
+    }
+    return 'Не удалось выполнить действие. Попробуйте ещё раз.';
+  }
+
+  String photoPickError(Object error) => _ru
+      ? 'Не удалось выбрать фотографии: ${errorMessage(error)}'
+      : 'Could not select photos: ${errorMessage(error)}';
 }

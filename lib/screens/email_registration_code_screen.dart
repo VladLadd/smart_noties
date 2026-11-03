@@ -51,7 +51,7 @@ class _EmailRegistrationCodeScreenState
           );
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (error) {
-      if (mounted) _showError(error.toString());
+      if (mounted) _showError(context.readStrings.errorMessage(error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -71,7 +71,7 @@ class _EmailRegistrationCodeScreenState
         SnackBar(content: Text(context.readStrings.codeSentAgain)),
       );
     } catch (error) {
-      if (mounted) _showError(error.toString());
+      if (mounted) _showError(context.readStrings.errorMessage(error));
     } finally {
       if (mounted) setState(() => _resending = false);
     }

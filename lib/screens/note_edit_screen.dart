@@ -164,7 +164,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+        SnackBar(
+            content: Text(context.readStrings.errorMessage(e)),
+            backgroundColor: Colors.red[700]),
       );
     }
   }
@@ -220,7 +222,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Не удалось выбрать фотографии: $error'),
+          content: Text(context.readStrings.photoPickError(error)),
           backgroundColor: Colors.red[700],
         ),
       );
@@ -355,7 +357,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
+        SnackBar(
+            content: Text(context.readStrings.errorMessage(e)),
+            backgroundColor: Colors.red[700]),
       );
     } finally {
       if (mounted) setState(() => _syncing = false);
@@ -479,7 +483,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
+        SnackBar(
+            content: Text(context.readStrings.errorMessage(e)),
+            backgroundColor: Colors.red[700]),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -723,7 +729,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       if (!mounted) return;
       setState(() => _deleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: Colors.red[700]),
+        SnackBar(
+            content: Text(context.readStrings.errorMessage(e)),
+            backgroundColor: Colors.red[700]),
       );
     }
   }
@@ -1448,7 +1456,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red[700]),
+        SnackBar(
+            content: Text(context.readStrings.errorMessage(e)),
+            backgroundColor: Colors.red[700]),
       );
     }
   }
@@ -1693,7 +1703,7 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
       setState(() => _preview = preview);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = context.readStrings.errorMessage(e));
     } finally {
       if (mounted) setState(() => _loadingPreview = false);
     }
@@ -1720,7 +1730,7 @@ class _AddVideoDialogState extends State<_AddVideoDialog> {
       Navigator.pop(context, video);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = context.readStrings.errorMessage(e));
     } finally {
       if (mounted) setState(() => _adding = false);
     }
