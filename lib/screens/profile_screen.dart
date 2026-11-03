@@ -80,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _linkEmail() async {
-    final strings = context.strings;
+    final strings = context.readStrings;
     final token = context.read<AuthProvider>().token;
     if (token == null || token.isEmpty) return;
     final emailController = TextEditingController();
@@ -193,7 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _linkPhone() async {
-    final strings = context.strings;
+    final strings = context.readStrings;
     final token = context.read<AuthProvider>().token;
     if (token == null || token.isEmpty) return;
     final phoneController = TextEditingController();

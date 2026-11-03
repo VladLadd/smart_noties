@@ -772,6 +772,64 @@ class _AdminUsersPanelState extends State<_AdminUsersPanel> {
     }
   }
 
+  Future<void> _deleteSelectedUser(AdminUser user) async {
+    if (user.role != 'user' || _actingUserId != null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Удалить пользователя?'),
+        content: Text(
+          'Аккаунт ${user.email.isNotEmpty ? user.email : user.phone} и все его заметки, вложения, NFC-карты и запросы будут удалены без возможности восстановления.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Удалить навсегда'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _actingUserId = user.id;
+      _error = null;
+    });
+    try {
+      final cleanupPending = await _service.deleteUser(
+        token: widget.token,
+        userId: user.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedUser = null;
+        _selectedKeys = const [];
+      });
+      await _search();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(cleanupPending
+              ? 'Пользователь удалён. Не все медиафайлы удалось очистить.'
+              : 'Пользователь и его данные удалены.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _actingUserId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return _PanelFrame(
@@ -827,6 +885,10 @@ class _AdminUsersPanelState extends State<_AdminUsersPanel> {
                     keyNameController: _keyNameCtrl,
                     onCreate: _createForSelectedUser,
                     onRevoke: _revokeForSelectedUser,
+                    deleting: _actingUserId == _selectedUser?.id,
+                    onDelete: _selectedUser == null
+                        ? null
+                        : () => _deleteSelectedUser(_selectedUser!),
                   ),
                 ),
               ],
@@ -1226,6 +1288,8 @@ class _SelectedUserKeysPanel extends StatelessWidget {
   final TextEditingController keyNameController;
   final VoidCallback onCreate;
   final ValueChanged<NfcKey> onRevoke;
+  final bool deleting;
+  final VoidCallback? onDelete;
 
   const _SelectedUserKeysPanel({
     required this.user,
@@ -1235,6 +1299,8 @@ class _SelectedUserKeysPanel extends StatelessWidget {
     required this.keyNameController,
     required this.onCreate,
     required this.onRevoke,
+    required this.deleting,
+    required this.onDelete,
   });
 
   @override
@@ -1269,6 +1335,21 @@ class _SelectedUserKeysPanel extends StatelessWidget {
                 ],
               ),
             ),
+            if (selected.role == 'user') ...[
+              const SizedBox(width: 8),
+              deleting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : IconButton(
+                      tooltip: 'Удалить пользователя и все его данные',
+                      onPressed: onDelete,
+                      color: scheme.error,
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+            ],
           ],
         ),
         const SizedBox(height: 12),

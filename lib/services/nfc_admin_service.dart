@@ -134,6 +134,21 @@ class NfcAdminService {
     _parseEmptyResponse(response);
   }
 
+  Future<bool> deleteUser({
+    required String token,
+    required int userId,
+  }) async {
+    final response = await http
+        .delete(
+          Uri.parse('$_baseUrl/api/admin/users/$userId'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 30));
+
+    final json = _parseResponse(response);
+    return json is Map<String, dynamic> && json['filesCleanupPending'] == true;
+  }
+
   Future<List<NfcKey>> fetchUserKeys({
     required String token,
     required int userId,
