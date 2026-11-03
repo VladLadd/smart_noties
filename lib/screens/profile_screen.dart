@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/nfc_key_model.dart';
+import '../models/phone_country.dart';
 import '../models/nfc_token_request_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
@@ -187,6 +188,148 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context.read<AuthProvider>().updateProfileEmail(linkedEmail);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(strings.emailLinked)),
+      );
+    }
+  }
+
+  Future<void> _linkPhone() async {
+    final strings = context.strings;
+    final token = context.read<AuthProvider>().token;
+    if (token == null || token.isEmpty) return;
+    final phoneController = TextEditingController();
+    final codeController = TextEditingController();
+    var country = PhoneCountry.countries.first;
+    var codeSent = false;
+    var busy = false;
+    String? error;
+    final linkedPhone = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final fullPhone =
+              '+${country.dialCode}${phoneController.text.replaceAll(RegExp(r'\D'), '')}';
+          return AlertDialog(
+            title: Text(strings.linkPhoneTitle),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!codeSent) ...[
+                  DropdownButtonFormField<PhoneCountry>(
+                    initialValue: country,
+                    decoration: InputDecoration(labelText: strings.phone),
+                    items: PhoneCountry.countries
+                        .map((item) => DropdownMenuItem(
+                              value: item,
+                              child: Text('${item.flag} +${item.dialCode}'),
+                            ))
+                        .toList(),
+                    onChanged: busy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setDialogState(() => country = value);
+                            }
+                          },
+                  ),
+                  TextField(
+                    controller: phoneController,
+                    enabled: !busy,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(country.maxDigits),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: strings.phoneNumber,
+                      prefixText: '+${country.dialCode} ',
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(strings.phoneLinkHelp),
+                ] else ...[
+                  Text(strings.phoneVerificationCodeSent(fullPhone)),
+                  TextField(
+                    controller: codeController,
+                    enabled: !busy,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: InputDecoration(
+                        labelText: strings.phoneVerificationCode),
+                  ),
+                ],
+                if (error != null)
+                  Text(error!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.pop(dialogContext),
+                child: Text(strings.cancel),
+              ),
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final digits =
+                            phoneController.text.replaceAll(RegExp(r'\D'), '');
+                        setDialogState(() {
+                          busy = true;
+                          error = null;
+                        });
+                        try {
+                          if (!codeSent) {
+                            if (digits.length != country.maxDigits) {
+                              setDialogState(() {
+                                error = strings.invalidPhoneNumber;
+                                busy = false;
+                              });
+                              return;
+                            }
+                            await _profileService.requestPhoneLinkCode(
+                              token: token,
+                              phone: fullPhone,
+                            );
+                            setDialogState(() {
+                              codeSent = true;
+                              busy = false;
+                            });
+                          } else {
+                            await _profileService.verifyPhoneLinkCode(
+                              token: token,
+                              phone: fullPhone,
+                              code: codeController.text.trim(),
+                            );
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext, fullPhone);
+                            }
+                          }
+                        } catch (e) {
+                          setDialogState(() {
+                            error = strings.errorMessage(e);
+                            busy = false;
+                          });
+                        }
+                      },
+                child: Text(busy
+                    ? strings.sending
+                    : codeSent
+                        ? strings.confirm
+                        : strings.send),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    phoneController.dispose();
+    codeController.dispose();
+    if (linkedPhone != null && mounted) {
+      setState(() => _profilePhone = linkedPhone);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.phoneLinked)),
       );
     }
   }
@@ -481,6 +624,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? _profilePhone
                     : strings.phoneNotAdded,
               ),
+              if (_profilePhone.isEmpty) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _linkPhone,
+                    icon: const Icon(Icons.add),
+                    label: Text(strings.linkPhone),
+                  ),
+                ),
+              ],
               if (_profileEmail.isEmpty && _profilePhone.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Align(

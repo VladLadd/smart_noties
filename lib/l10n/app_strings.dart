@@ -55,6 +55,16 @@ class AppStrings {
   String get password => _ru ? 'Пароль' : 'Password';
   String get newPassword => _ru ? 'Новый пароль' : 'New password';
   String get linkEmail => _ru ? 'Добавить email' : 'Add email';
+  String get linkPhone => _ru ? 'Добавить телефон' : 'Add phone';
+  String get linkPhoneTitle => _ru ? 'Привязать телефон' : 'Link phone';
+  String get phoneVerificationCode => _ru ? 'Код из сообщения' : 'Phone code';
+  String get phoneLinkHelp => _ru
+      ? 'Код подтверждения будет отправлен через Telegram.'
+      : 'A verification code will be sent through Telegram.';
+  String phoneVerificationCodeSent(String phone) => _ru
+      ? 'Код подтверждения отправлен для номера $phone'
+      : 'A verification code was sent for $phone';
+  String get phoneLinked => _ru ? 'Телефон привязан' : 'Phone linked';
   String get linkEmailTitle => _ru ? 'Привязать email' : 'Link email';
   String get linkEmailPasswordHint => _ru
       ? 'Задайте пароль для входа по email'
@@ -375,6 +385,11 @@ class AppStrings {
       'nfc key not found': 'NFC-токен не найден.',
       'email already registered': 'Этот email уже используется.',
       'phone already registered': 'Этот номер телефона уже используется.',
+      'phone already added': 'Телефон уже привязан к аккаунту.',
+      'cannot update profile phone': 'Не удалось привязать телефон.',
+      'cannot finish phone verification': 'Не удалось подтвердить телефон.',
+      'код не соответствует запрошенному номеру':
+          'Код не соответствует этому номеру телефона.',
       'invalid email': 'Некорректный email.',
       'wrong password': 'Неверный пароль.',
       'password required': 'Введите пароль.',

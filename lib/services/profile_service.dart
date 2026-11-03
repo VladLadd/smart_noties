@@ -58,6 +58,35 @@ class ProfileService {
     _decode(response);
   }
 
+  Future<void> requestPhoneLinkCode({
+    required String token,
+    required String phone,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$apiBaseUrl/api/profile/phone/request-code'),
+          headers: {..._headers(token), 'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone}),
+        )
+        .timeout(const Duration(seconds: 20));
+    _decode(response);
+  }
+
+  Future<void> verifyPhoneLinkCode({
+    required String token,
+    required String phone,
+    required String code,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$apiBaseUrl/api/profile/phone/verify-code'),
+          headers: {..._headers(token), 'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone, 'code': code}),
+        )
+        .timeout(const Duration(seconds: 20));
+    _decode(response);
+  }
+
   Future<String> uploadAvatar({
     required String token,
     required XFile file,
