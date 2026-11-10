@@ -45,6 +45,12 @@ class AppStrings {
       : 'Could not open the store. You can copy the link instead.';
   String get faqLinkCopied => _ru ? 'Ссылка скопирована' : 'Link copied';
 
+  String get imagePreviewUnavailable =>
+      _ru ? 'Не удалось показать фото' : 'Could not preview photo';
+  String get imageConversionFailed => _ru
+      ? 'Не удалось преобразовать HEIC. Проверьте подключение и повторите выбор фото.'
+      : 'Could not convert HEIC. Check your connection and select the photo again.';
+
   String get languageLabel => _ru ? 'Язык' : 'Language';
   String get russian => _ru ? 'Русский' : 'Russian';
   String get english => _ru ? 'Английский' : 'English';

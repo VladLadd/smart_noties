@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/incoming_share_provider.dart';
 import '../services/api_config.dart';
+import '../services/image_normalizer.dart';
 import '../services/notes_service.dart';
 import '../services/open_attachment.dart';
 import '../widgets/color_picker_menu.dart';
@@ -50,6 +52,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   String? _coverImagePath;
   XFile? _coverImageFile;
   final List<_EditableImage> _photos = [];
+  final Map<String, Uint8List> _normalizedImageBytes = {};
+  final Map<String, XFile> _normalizedImageFiles = {};
+  final Set<String> _preparingImages = {};
   final List<String> _attachmentPaths = [];
   bool _openingAttachment = false;
   bool _isRecording = false;
@@ -106,6 +111,12 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       (note?.photoPaths ?? const []).map((path) => _EditableImage(path: path)),
     );
     if (note == null && share != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        for (final image in share.images) {
+          if (!mounted) return;
+          await _prepareImage(XFile(image.path, mimeType: image.mimeType));
+        }
+      });
       _photos.addAll(share.images.map((image) => _EditableImage(
             path: image.path,
             file: XFile(image.path, mimeType: image.mimeType),
@@ -213,6 +224,31 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     setState(() => _selectedColor = color);
   }
 
+  Future<bool> _prepareImage(XFile file) async {
+    if (!mounted) return false;
+    final token = context.read<AuthProvider>().token;
+    setState(() => _preparingImages.add(file.path));
+    try {
+      final bytes = await const ImageNormalizer().normalize(file, token: token);
+      if (!mounted) return false;
+      if (bytes != null) {
+        _normalizedImageBytes[file.path] = bytes;
+        _normalizedImageFiles[file.path] = XFile.fromData(bytes,
+            name: '${file.name.replaceFirst(RegExp(r'\.[^.]+$'), '')}.jpg',
+            mimeType: 'image/jpeg');
+      }
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(context.readStrings.imageConversionFailed)));
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _preparingImages.remove(file.path));
+    }
+  }
+
   Future<void> _pickCoverImage() async {
     final source = await _showImageSourceSheet(
       title: context.readStrings.coverImage,
@@ -221,7 +257,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     if (source == null) return;
     final picked =
         await ImagePicker().pickImage(source: source, imageQuality: 85);
-    if (picked != null) {
+    if (picked != null && await _prepareImage(picked) && mounted) {
       setState(() {
         _coverImagePath = picked.path;
         _coverImageFile = picked;
@@ -240,7 +276,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       if (source == ImageSource.camera) {
         final picked =
             await ImagePicker().pickImage(source: source, imageQuality: 85);
-        if (picked != null && mounted) {
+        if (picked != null && await _prepareImage(picked) && mounted) {
           setState(
             () => _photos.add(_EditableImage(path: picked.path, file: picked)),
           );
@@ -249,10 +285,15 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       }
 
       final picked = await ImagePicker().pickMultiImage(imageQuality: 85);
-      if (picked.isNotEmpty && mounted) {
+      final prepared = <XFile>[];
+      for (final file in picked) {
+        if (!mounted) return;
+        if (await _prepareImage(file)) prepared.add(file);
+      }
+      if (prepared.isNotEmpty && mounted) {
         setState(
           () => _photos.addAll(
-            picked.map((file) => _EditableImage(path: file.path, file: file)),
+            prepared.map((file) => _EditableImage(path: file.path, file: file)),
           ),
         );
       }
@@ -405,7 +446,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Future<void> _saveNote() async {
-    if (_saving) return;
+    if (_saving || _preparingImages.isNotEmpty) return;
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content:
@@ -573,7 +614,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     try {
       if (pickedFile != null) {
         return await provider.uploadPickedImage(
-          pickedFile,
+          _normalizedImageFiles[path] ?? pickedFile,
           auth.token!,
           mediaPassword: _isProtected ? _protectionPassword : null,
         );
@@ -623,6 +664,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Column(
                     children: [
+                      if (_preparingImages.isNotEmpty)
+                        const LinearProgressIndicator(),
                       _buildImagePreview(),
                       _buildTextFields(),
                       _buildPhotoGallery(),
@@ -970,14 +1013,19 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image(
-                  image: ResizeImage(
-                    _imageProviderForPath(path),
-                    width: 512,
-                    height: 512,
-                  ),
-                  fit: BoxFit.cover,
-                ),
+                child: _preparingImages.contains(path)
+                    ? const Center(child: CircularProgressIndicator())
+                    : Image(
+                        errorBuilder: (context, error, stack) => Center(
+                            child: Text(context.strings.imagePreviewUnavailable,
+                                textAlign: TextAlign.center)),
+                        image: ResizeImage(
+                          _imageProviderForPath(path),
+                          width: 512,
+                          height: 512,
+                        ),
+                        fit: BoxFit.cover,
+                      ),
               ),
               Positioned(
                 top: 4,
@@ -1003,6 +1051,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   ImageProvider _imageProviderForPath(String path) {
+    if (_normalizedImageBytes.containsKey(path)) {
+      return MemoryImage(_normalizedImageBytes[path]!);
+    }
     if (path.startsWith('assets/')) return AssetImage(path);
     if (isRemoteMedia(path)) {
       final token = context.read<AuthProvider>().token;
@@ -1412,7 +1463,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             ],
           );
           final saveButton = ElevatedButton(
-            onPressed: _saving ? null : _saveNote,
+            onPressed:
+                _saving || _preparingImages.isNotEmpty ? null : _saveNote,
             child: _saving
                 ? const SizedBox(
                     width: 18,

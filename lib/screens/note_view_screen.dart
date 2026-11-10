@@ -210,6 +210,13 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
                                       child: Image(
+                                        errorBuilder: (context, error, stack) =>
+                                            Center(
+                                                child: Text(
+                                                    context.strings
+                                                        .imagePreviewUnavailable,
+                                                    style: const TextStyle(
+                                                        color: Colors.grey))),
                                         image: image,
                                         width: double.infinity,
                                         height: 220,
@@ -341,6 +348,15 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                                           borderRadius:
                                               BorderRadius.circular(8),
                                           child: Image(
+                                            errorBuilder: (context, error,
+                                                    stack) =>
+                                                Center(
+                                                    child: Text(
+                                                        context.strings
+                                                            .imagePreviewUnavailable,
+                                                        style: const TextStyle(
+                                                            color:
+                                                                Colors.grey))),
                                             image: provider,
                                             fit: BoxFit.cover,
                                           ),
@@ -834,6 +850,9 @@ class _FullscreenImageGalleryState extends State<_FullscreenImageGallery> {
                     minScale: 1,
                     maxScale: 4,
                     child: Image(
+                      errorBuilder: (context, error, stack) => Center(
+                          child: Text(context.strings.imagePreviewUnavailable,
+                              style: const TextStyle(color: Colors.grey))),
                       image: provider,
                       fit: BoxFit.contain,
                       width: double.infinity,
