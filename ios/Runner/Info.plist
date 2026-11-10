@@ -24,6 +24,19 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>AppGroupId</key>
+	<string>$(CUSTOM_GROUP_ID)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NFCReaderUsageDescription</key>
@@ -55,7 +68,7 @@
 					<key>UISceneConfigurationName</key>
 					<string>flutter</string>
 					<key>UISceneDelegateClassName</key>
-					<string>FlutterSceneDelegate</string>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 					<key>UISceneStoryboardFile</key>
 					<string>Main</string>
 				</dict>

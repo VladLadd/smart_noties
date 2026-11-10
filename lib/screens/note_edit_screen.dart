@@ -16,7 +16,10 @@ import '../models/video_preview_model.dart';
 import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
+import '../providers/incoming_share_provider.dart';
 import '../services/api_config.dart';
+import '../services/notes_service.dart';
+import '../services/open_attachment.dart';
 import '../widgets/color_picker_menu.dart';
 import '../widgets/voice_message_player.dart';
 import 'video_player_screen.dart';
@@ -24,11 +27,13 @@ import 'video_player_screen.dart';
 class NoteEditScreen extends StatefulWidget {
   final Note? initialNote;
   final bool initiallyUnlocked;
+  final IncomingShare? incomingShare;
 
   const NoteEditScreen({
     super.key,
     this.initialNote,
     this.initiallyUnlocked = false,
+    this.incomingShare,
   });
 
   @override
@@ -45,6 +50,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   String? _coverImagePath;
   XFile? _coverImageFile;
   final List<_EditableImage> _photos = [];
+  final List<String> _attachmentPaths = [];
+  bool _openingAttachment = false;
   bool _isRecording = false;
   String? _recordedPath;
   int _recordSeconds = 0;
@@ -55,6 +62,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   bool _isHidden = false;
   String? _hiddenKeyId;
   bool _showBodyPreview = false;
+  bool _allowSharedDraftPop = false;
+  bool _discardDialogOpen = false;
 
   final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
   late AnimationController _animController;
@@ -74,8 +83,16 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     final note = widget.initialNote;
     _currentNote = note;
 
-    _titleController = TextEditingController(text: note?.title ?? '');
-    _bodyController = TextEditingController(text: note?.body ?? '');
+    final share = widget.incomingShare;
+    _attachmentPaths.addAll(note?.attachmentPaths ?? const []);
+    _attachmentPaths
+        .addAll(share?.files.map((file) => file.path) ?? const <String>[]);
+    _titleController = TextEditingController(
+      text: note?.title ?? share?.title ?? '',
+    );
+    _bodyController = TextEditingController(
+      text: note?.body ?? share?.body ?? '',
+    );
     _bodyFocusNode = FocusNode();
     _selectedColor = note?.color ?? Colors.white;
     _isProtected = note?.hasProtection ?? false;
@@ -88,6 +105,24 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     _photos.addAll(
       (note?.photoPaths ?? const []).map((path) => _EditableImage(path: path)),
     );
+    if (note == null && share != null) {
+      _photos.addAll(share.images.map((image) => _EditableImage(
+            path: image.path,
+            file: XFile(image.path, mimeType: image.mimeType),
+          )));
+      if (share.unsupportedFileCount > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.strings.sharedFilesNotSupported(
+                share.unsupportedFileCount,
+              )),
+            ),
+          );
+        });
+      }
+    }
     if (note?.isVoice == true) _recordedPath = note?.voicePath;
 
     _animController = AnimationController(
@@ -154,6 +189,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           ..addAll(
             unlocked.photoPaths.map((path) => _EditableImage(path: path)),
           );
+        _attachmentPaths
+          ..clear()
+          ..addAll(unlocked.attachmentPaths);
         _recordedPath = unlocked.voicePath;
         _isProtected = unlocked.hasProtection;
         _isHidden = unlocked.isHidden;
@@ -368,10 +406,18 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   Future<void> _saveNote() async {
     if (_saving) return;
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text(context.readStrings.errorMessage(Exception('title required'))),
+      ));
+      return;
+    }
     setState(() => _saving = true);
 
     final provider = context.read<NotesProvider>();
     final auth = context.read<AuthProvider>();
+    final strings = context.readStrings;
     String? imagePath = _coverImagePath;
     List<_EditableImage> photos = List.of(_photos);
 
@@ -406,6 +452,19 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         }
       }
       final photoPaths = uploadedPhotoPaths;
+      for (var i = 0; i < _attachmentPaths.length; i++) {
+        final path = _attachmentPaths[i];
+        if (!isRemoteMedia(path)) {
+          if (auth.token == null || auth.token!.isEmpty) {
+            throw Exception(strings.attachmentNeedsConnection);
+          }
+          _attachmentPaths[i] = await NotesService().uploadAttachment(
+            file: XFile(path),
+            token: auth.token!,
+            mediaPassword: _isProtected ? _protectionPassword : null,
+          );
+        }
+      }
 
       // Свежую локальную запись заливаем на сервер → в заметке будет URL.
       String? voicePath = _recordedPath;
@@ -445,6 +504,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           clearDrawingData: drawingData == null,
           imagePath: imagePath,
           photoPaths: photoPaths,
+          attachmentPaths: List.of(_attachmentPaths),
           clearImagePath: imagePath == null,
           voicePath: voicePath,
           clearVoicePath: voicePath == null,
@@ -467,6 +527,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             drawingData: null,
             imagePath: imagePath,
             photoPaths: photoPaths,
+            attachmentPaths: List.of(_attachmentPaths),
             voicePath: voicePath,
             isVoice: voicePath != null,
             color: _selectedColor,
@@ -479,7 +540,10 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           token: auth.token,
         );
       }
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        _allowSharedDraftPop = true;
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -541,31 +605,68 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   Widget build(BuildContext context) {
     if (_isLocked) return _buildLockedScreen();
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(),
-            const Divider(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  children: [
-                    _buildImagePreview(),
-                    _buildTextFields(),
-                    _buildPhotoGallery(),
-                    _buildVoiceSection(),
-                    _buildVideoSection(),
-                  ],
+    return PopScope<Object?>(
+      canPop: widget.incomingShare == null || _allowSharedDraftPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && widget.incomingShare != null) {
+          _confirmDiscardIncomingShare();
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildTopBar(),
+              const Divider(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Column(
+                    children: [
+                      _buildImagePreview(),
+                      _buildTextFields(),
+                      _buildPhotoGallery(),
+                      _buildFileAttachments(),
+                      _buildVoiceSection(),
+                      _buildVideoSection(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _buildBottomActions(),
-          ],
+              _buildBottomActions(),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDiscardIncomingShare() async {
+    if (_discardDialogOpen || !mounted) return;
+    _discardDialogOpen = true;
+    final strings = context.readStrings;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.discardSharedNoteTitle),
+        content: Text(strings.discardSharedNoteMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(strings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(strings.discard),
+          ),
+        ],
+      ),
+    );
+    _discardDialogOpen = false;
+    if (discard == true && mounted) {
+      setState(() => _allowSharedDraftPop = true);
+      Navigator.pop(context);
+    }
   }
 
   Widget _buildLockedScreen() {
@@ -623,7 +724,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back, size: 28),
-            onPressed: () => Navigator.pop(context),
+            onPressed: widget.incomingShare == null
+                ? () => Navigator.pop(context)
+                : _confirmDiscardIncomingShare,
           ),
           Row(
             children: [
@@ -1150,6 +1253,48 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       );
     }
     return const SizedBox.shrink();
+  }
+
+  String _attachmentName(String path) {
+    final name = Uri.tryParse(path)?.pathSegments.lastOrNull ?? path;
+    return name.replaceFirst(RegExp(r'^[a-f0-9]{32}_'), '');
+  }
+
+  Widget _buildFileAttachments() {
+    if (_attachmentPaths.isEmpty) return const SizedBox.shrink();
+    return Column(children: [
+      for (final path in List.of(_attachmentPaths))
+        ListTile(
+          leading: const Icon(Icons.attach_file),
+          title: Text(_attachmentName(path),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+          onTap: _openingAttachment
+              ? null
+              : () async {
+                  setState(() => _openingAttachment = true);
+                  try {
+                    await openAttachment(path,
+                        name: _attachmentName(path),
+                        token: context.read<AuthProvider>().token,
+                        password: _isProtected ? _protectionPassword : null);
+                  } catch (_) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content:
+                              Text(context.readStrings.attachmentOpenFailed)));
+                    }
+                  } finally {
+                    if (mounted) setState(() => _openingAttachment = false);
+                  }
+                },
+          trailing: IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: context.readStrings.removeAttachment,
+              onPressed: _saving
+                  ? null
+                  : () => setState(() => _attachmentPaths.remove(path))),
+        ),
+    ]);
   }
 
   Widget _buildVideoSection() {

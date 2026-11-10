@@ -13,6 +13,13 @@ enum AppLanguage {
 }
 
 class AppStrings {
+  String get attachmentNeedsConnection => _ru
+      ? 'Для загрузки вложений необходимо подключение к серверу'
+      : 'A server connection is required to upload attachments';
+  String get attachmentOpenFailed =>
+      _ru ? 'Не удалось открыть вложение' : 'Could not open attachment';
+  String get removeAttachment => _ru ? 'Убрать вложение' : 'Remove attachment';
+
   final AppLanguage language;
 
   const AppStrings(this.language);
@@ -48,6 +55,15 @@ class AppStrings {
   String get add => _ru ? 'Добавить' : 'Add';
   String get check => _ru ? 'Проверить' : 'Check';
   String get back => _ru ? 'Назад' : 'Back';
+  String get discard => _ru ? 'Удалить черновик' : 'Discard draft';
+  String get discardSharedNoteTitle =>
+      _ru ? 'Закрыть заметку?' : 'Discard shared note?';
+  String get discardSharedNoteMessage => _ru
+      ? 'Переданный контент не сохранён. Закрыть редактор и удалить черновик?'
+      : 'The shared content has not been saved. Close the editor and discard it?';
+  String sharedFilesNotSupported(int count) => _ru
+      ? 'Не удалось добавить ${count == 1 ? 'вложение' : 'некоторые вложения'}: этот тип пока не поддерживается. Текст и изображения можно сохранить.'
+      : 'Some shared files could not be added because this file type is not supported yet. Text and images can still be saved.';
 
   String get email => 'Email';
   String get phone => _ru ? 'Телефон' : 'Phone';

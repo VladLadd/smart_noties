@@ -9,8 +9,10 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'providers/locale_provider.dart';
 import 'providers/notes_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/incoming_share_provider.dart';
 import 'screens/notes_grid_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/note_edit_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/web_max_width.dart';
 
@@ -29,6 +31,7 @@ class SmartNotesApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => NotesProvider()),
+        ChangeNotifierProvider(create: (_) => IncomingShareProvider()),
       ],
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) {
@@ -178,11 +181,48 @@ class _FaceDownHiddenNotesLockState extends State<_FaceDownHiddenNotesLock> {
   Widget build(BuildContext context) => widget.child;
 }
 
-class _HomeRouter extends StatelessWidget {
+class _HomeRouter extends StatefulWidget {
   const _HomeRouter();
 
   @override
+  State<_HomeRouter> createState() => _HomeRouterState();
+}
+
+class _HomeRouterState extends State<_HomeRouter> {
+  bool _openingShare = false;
+
+  void _openPendingShareWhenReady() {
+    if (_openingShare) return;
+    final incoming = context.read<IncomingShareProvider>().pending;
+    final auth = context.read<AuthProvider>();
+    final notes = context.read<NotesProvider>();
+    if (incoming == null ||
+        auth.status != AuthStatus.authenticated ||
+        notes.loadingServerNotes ||
+        notes.shouldLoadServerNotes(auth.token)) {
+      return;
+    }
+
+    _openingShare = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final share = context.read<IncomingShareProvider>().takePending();
+      if (share == null) {
+        _openingShare = false;
+        return;
+      }
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => NoteEditScreen(incomingShare: share),
+        ),
+      );
+      if (mounted) setState(() => _openingShare = false);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    context.watch<IncomingShareProvider>().pending;
     final authStatus = context.watch<AuthProvider>().status;
 
     if (authStatus == AuthStatus.checking) {
@@ -216,6 +256,7 @@ class _HomeRouter extends StatelessWidget {
       );
     }
 
+    _openPendingShareWhenReady();
     return const NotesGridScreen();
   }
 }

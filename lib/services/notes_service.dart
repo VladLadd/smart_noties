@@ -61,6 +61,12 @@ class NotesService {
       'isVideo': requestNote.isVideo,
       'imagePath': requestNote.imagePath ?? '',
       'photoPaths': requestNote.photoPaths,
+      'attachmentPaths': requestNote.attachmentPaths,
+      'attachmentKeys': note.attachmentPaths
+          .where((p) => p.startsWith('/api/file/'))
+          .map((p) => Uri.parse(p).pathSegments.last.split('_').first)
+          .where((key) => RegExp(r'^[a-f0-9]{32}$').hasMatch(key))
+          .toList(),
       'voicePath': requestNote.voicePath ?? '',
       'isProtected': note.hasProtection,
       'isHidden': note.isHidden,
@@ -119,6 +125,12 @@ class NotesService {
       'isVideo': requestNote.isVideo,
       'imagePath': requestNote.imagePath ?? '',
       'photoPaths': requestNote.photoPaths,
+      'attachmentPaths': requestNote.attachmentPaths,
+      'attachmentKeys': note.attachmentPaths
+          .where((p) => p.startsWith('/api/file/'))
+          .map((p) => Uri.parse(p).pathSegments.last.split('_').first)
+          .where((key) => RegExp(r'^[a-f0-9]{32}$').hasMatch(key))
+          .toList(),
       'voicePath': requestNote.voicePath ?? '',
       'isProtected': note.hasProtection,
       'isHidden': note.isHidden,
@@ -421,6 +433,26 @@ class NotesService {
       throw Exception('Сервер не вернул URL изображения');
     }
     return url;
+  }
+
+  Future<String> uploadAttachment(
+      {required XFile file,
+      required String token,
+      String? mediaPassword}) async {
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$_baseUrl/api/upload/file'))
+          ..headers['Authorization'] = 'Bearer $token'
+          ..files.add(http.MultipartFile(
+              'file', file.openRead(), await file.length(),
+              filename: file.name));
+    _applyMediaProtection(request, mediaPassword);
+    final response = await http.Response.fromStream(
+        await request.send().timeout(const Duration(minutes: 5)));
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode >= 400) {
+      throw Exception(data['error'] ?? 'Не удалось загрузить файл');
+    }
+    return data['url'] as String;
   }
 
   /// Удаляет заметку на сервере (вместе со связанным аудио-файлом).

@@ -12,6 +12,12 @@ subprojects {
 subprojects {
     project.evaluationDependsOn(":app")
 }
+subprojects {
+    plugins.withId("com.android.library") {
+        android.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+        android.compileOptions.targetCompatibility = JavaVersion.VERSION_17
+    }
+}
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir

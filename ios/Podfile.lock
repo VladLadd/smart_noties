@@ -6,7 +6,11 @@ PODS:
   - flutter_sound_core (9.28.0)
   - nfc_manager (0.0.1):
     - Flutter
+  - open_filex (0.0.2):
+    - Flutter
   - permission_handler_apple (9.3.0):
+    - Flutter
+  - receive_sharing_intent (1.8.1):
     - Flutter
   - sensors_plus (0.0.1):
     - Flutter
@@ -15,7 +19,9 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_sound (from `.symlinks/plugins/flutter_sound/ios`)
   - nfc_manager (from `.symlinks/plugins/nfc_manager/ios`)
+  - open_filex (from `.symlinks/plugins/open_filex/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
+  - receive_sharing_intent (from `.symlinks/plugins/receive_sharing_intent/ios`)
   - sensors_plus (from `.symlinks/plugins/sensors_plus/ios`)
 
 SPEC REPOS:
@@ -29,8 +35,12 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_sound/ios"
   nfc_manager:
     :path: ".symlinks/plugins/nfc_manager/ios"
+  open_filex:
+    :path: ".symlinks/plugins/open_filex/ios"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
+  receive_sharing_intent:
+    :path: ".symlinks/plugins/receive_sharing_intent/ios"
   sensors_plus:
     :path: ".symlinks/plugins/sensors_plus/ios"
 
@@ -39,9 +49,11 @@ SPEC CHECKSUMS:
   flutter_sound: b9236a5875299aaa4cef1690afd2f01d52a3f890
   flutter_sound_core: 427465f72d07ab8c3edbe8ffdde709ddacd3763c
   nfc_manager: 9c40fe22528ab871ca11e52ea8b95790e9d92ca2
+  open_filex: 432f3cd11432da3e39f47fcc0df2b1603854eff1
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
+  receive_sharing_intent: 222384f00ffe7e952bbfabaa9e3967cb87e5fe00
   sensors_plus: 2ba4ccef05473d428576bd640f0409c833a9bdea
 
-PODFILE CHECKSUM: 9c46fd01abff66081b39f5fa5767b3f1d0b11d76
+PODFILE CHECKSUM: 4d229ee3956a149bf6b48cb0b27b062192d43ee4
 
 COCOAPODS: 1.17.0

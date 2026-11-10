@@ -9,6 +9,7 @@ class Note {
   final String? drawingData;
   final String? imagePath;
   final List<String> photoPaths;
+  final List<String> attachmentPaths;
   final String? voicePath;
   final bool isVoice;
   final bool _isVideo;
@@ -33,6 +34,7 @@ class Note {
     this.drawingData,
     this.imagePath,
     this.photoPaths = const [],
+    this.attachmentPaths = const [],
     this.voicePath,
     this.isVoice = false,
     bool isVideo = false,
@@ -52,6 +54,7 @@ class Note {
     String? drawingData,
     String? imagePath,
     List<String>? photoPaths,
+    List<String>? attachmentPaths,
     String? voicePath,
     bool? isVoice,
     bool? isVideo,
@@ -76,6 +79,7 @@ class Note {
       drawingData: clearDrawingData ? null : (drawingData ?? this.drawingData),
       imagePath: clearImagePath ? null : (imagePath ?? this.imagePath),
       photoPaths: photoPaths ?? this.photoPaths,
+      attachmentPaths: attachmentPaths ?? this.attachmentPaths,
       voicePath: clearVoicePath ? null : (voicePath ?? this.voicePath),
       isVoice: isVoice ?? this.isVoice,
       isVideo: isVideo ?? (videos != null ? nextVideos.isNotEmpty : _isVideo),
@@ -98,6 +102,7 @@ class Note {
         'drawingData': drawingData,
         'imagePath': imagePath,
         'photoPaths': photoPaths,
+        'attachmentPaths': attachmentPaths,
         'voicePath': voicePath,
         'isVoice': isVoice,
         'isVideo': isVideo,
@@ -119,6 +124,7 @@ class Note {
       drawingData: _readNullableString(json['drawingData']),
       imagePath: _readNullableString(json['imagePath']),
       photoPaths: _readStringList(json['photoPaths']),
+      attachmentPaths: _readStringList(json['attachmentPaths']),
       voicePath: _readNullableString(json['voicePath']),
       isVoice: json['isVoice'] as bool? ?? false,
       isVideo: (json['isVideo'] as bool? ?? false) || videos.isNotEmpty,

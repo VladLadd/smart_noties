@@ -33,6 +33,10 @@ Future<Note> encryptNoteForClient(Note note, String password) async {
     photoPaths.add(await _encryptString(path, password));
   }
 
+  final attachmentPaths = <String>[];
+  for (final path in note.attachmentPaths) {
+    attachmentPaths.add(await _encryptString(path, password));
+  }
   return note.copyWith(
     title: title,
     body: body,
@@ -43,6 +47,7 @@ Future<Note> encryptNoteForClient(Note note, String password) async {
     voicePath: voicePath,
     clearVoicePath: voicePath == null,
     photoPaths: photoPaths,
+    attachmentPaths: attachmentPaths,
   );
 }
 
@@ -65,6 +70,10 @@ Future<Note> decryptNoteFromClient(Note note, String password) async {
     photoPaths.add(await _decryptString(path, password));
   }
 
+  final attachmentPaths = <String>[];
+  for (final path in note.attachmentPaths) {
+    attachmentPaths.add(await _decryptString(path, password));
+  }
   return note.copyWith(
     title: title,
     body: body,
@@ -75,6 +84,7 @@ Future<Note> decryptNoteFromClient(Note note, String password) async {
     voicePath: voicePath,
     clearVoicePath: voicePath == null,
     photoPaths: photoPaths,
+    attachmentPaths: attachmentPaths,
   );
 }
 
