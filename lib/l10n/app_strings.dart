@@ -27,6 +27,24 @@ class AppStrings {
   bool get _ru => language == AppLanguage.ru;
   bool get isRussian => _ru;
 
+  String get faqTitle => _ru ? 'Вопросы и ответы' : 'FAQ';
+  String get faqProfileHint =>
+      _ru ? 'Помощь с NFC и заметками' : 'Help with NFC and notes';
+  String get faqSubtitle => _ru
+      ? 'Ответы на основные вопросы о Smart Notes.'
+      : 'Answers to common questions about Smart Notes.';
+  String get faqNfcSection =>
+      _ru ? 'NFC-карты и скрытые заметки' : 'NFC cards and hidden notes';
+  String get faqGeneralSection =>
+      _ru ? 'Заметки и аккаунт' : 'Notes and account';
+  String get faqNfcToolsDescription => _ru
+      ? 'Для записи токена на карту используйте NFC Tools. Выберите магазин вашего устройства.'
+      : 'Use NFC Tools to write your token to a card. Choose your device’s app store.';
+  String get faqStoreUnavailable => _ru
+      ? 'Не удалось открыть магазин. Вы можете скопировать ссылку.'
+      : 'Could not open the store. You can copy the link instead.';
+  String get faqLinkCopied => _ru ? 'Ссылка скопирована' : 'Link copied';
+
   String get languageLabel => _ru ? 'Язык' : 'Language';
   String get russian => _ru ? 'Русский' : 'Russian';
   String get english => _ru ? 'Английский' : 'English';

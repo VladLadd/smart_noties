@@ -37,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
@@ -125,6 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _emailCtrl,
                     label: 'Email',
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
                     validator: _validateEmail,
                   ),
                   const SizedBox(height: 16),
@@ -132,6 +134,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _passwordCtrl,
                     label: strings.password,
                     obscure: _obscure,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _submit(),
                     validator: _validatePassword,
                     suffix: IconButton(
                       icon: Icon(
@@ -443,6 +447,8 @@ class _AuthField extends StatelessWidget {
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
   final Widget? suffix;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onFieldSubmitted;
 
   const _AuthField({
     required this.controller,
@@ -451,6 +457,8 @@ class _AuthField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.validator,
     this.suffix,
+    this.textInputAction,
+    this.onFieldSubmitted,
   });
 
   @override
@@ -459,6 +467,8 @@ class _AuthField extends StatelessWidget {
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onFieldSubmitted,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,

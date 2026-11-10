@@ -12,6 +12,7 @@ import '../providers/notes_provider.dart';
 import '../services/nfc_admin_service.dart';
 import '../services/api_config.dart';
 import '../services/profile_service.dart';
+import 'faq_screen.dart';
 
 enum _AvatarAction { choose, remove }
 
@@ -661,6 +662,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 12),
               const _LanguageSelectorTile(),
+              const SizedBox(height: 12),
+              Card(
+                margin: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  leading: const Icon(Icons.help_outline),
+                  title: Text(strings.faqTitle),
+                  subtitle: Text(strings.faqProfileHint),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(builder: (_) => const FaqScreen()),
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
               _NfcTokenSection(
                 requests: _tokenRequests,
