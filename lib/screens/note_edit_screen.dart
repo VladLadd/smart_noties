@@ -226,6 +226,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   Future<bool> _prepareImage(XFile file) async {
     if (!mounted) return false;
+    if (context.read<AuthProvider>().isGuest) return true;
     final token = context.read<AuthProvider>().token;
     setState(() => _preparingImages.add(file.path));
     try {
@@ -397,7 +398,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     }
     // Временный файл записи чистим; сохранённые заметки удаляют файл при сохранении.
     final path = _recordedPath;
-    if (path != null && path.contains('note_voice_')) {
+    if (path != null &&
+        path.contains('note_voice_') &&
+        !path.contains('/guest_notes/')) {
       final file = File(path);
       if (await file.exists()) {
         try {
@@ -495,7 +498,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       final photoPaths = uploadedPhotoPaths;
       for (var i = 0; i < _attachmentPaths.length; i++) {
         final path = _attachmentPaths[i];
-        if (!isRemoteMedia(path)) {
+        if (!auth.isGuest && !isRemoteMedia(path)) {
           if (auth.token == null || auth.token!.isEmpty) {
             throw Exception(strings.attachmentNeedsConnection);
           }
@@ -563,6 +566,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
         await provider.addNote(
           Note(
             id: '',
+            isIncoming: widget.incomingShare != null,
+            createdAt: DateTime.now(),
             title: _titleController.text,
             body: _bodyController.text,
             drawingData: null,
@@ -790,15 +795,17 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                       ),
                 const SizedBox(width: 8),
               ],
-              IconButton(
-                icon: Icon(
-                  Icons.visibility_off,
-                  color: _isHidden ? Colors.black87 : Colors.grey[600],
+              if (!context.read<AuthProvider>().isGuest)
+                IconButton(
+                  icon: Icon(
+                    Icons.visibility_off,
+                    color: _isHidden ? Colors.black87 : Colors.grey[600],
+                  ),
+                  tooltip: _isHidden
+                      ? strings.removeNfcHiding
+                      : strings.hideNoteByNfc,
+                  onPressed: _toggleHiddenNote,
                 ),
-                tooltip:
-                    _isHidden ? strings.removeNfcHiding : strings.hideNoteByNfc,
-                onPressed: _toggleHiddenNote,
-              ),
               const SizedBox(width: 8),
               IconButton(
                 icon: Icon(_isProtected ? Icons.lock : Icons.lock_open),
@@ -1308,7 +1315,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
 
   String _attachmentName(String path) {
     final name = Uri.tryParse(path)?.pathSegments.lastOrNull ?? path;
-    return name.replaceFirst(RegExp(r'^[a-f0-9]{32}_'), '');
+    return name.replaceFirst(RegExp(r'^[a-f0-9]{32}_|^[0-9]+_[0-9]+_'), '');
   }
 
   Widget _buildFileAttachments() {
@@ -1524,6 +1531,13 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   }
 
   Future<void> _showAddVideoDialog() async {
+    if (context.read<AuthProvider>().isGuest) {
+      final file = await ImagePicker().pickVideo(source: ImageSource.gallery);
+      if (file != null && mounted) {
+        setState(() => _attachmentPaths.add(file.path));
+      }
+      return;
+    }
     final note = _currentNote;
     if (!_isEditing || note == null || note.id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

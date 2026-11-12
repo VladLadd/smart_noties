@@ -199,6 +199,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                   ),
                 ),
+                if (AuthProvider.supportsGuestMode) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                      child: TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => context.read<AuthProvider>().enterGuestMode(),
+                    child: Text(strings.continueAsGuest),
+                  )),
+                ],
                 const SizedBox(height: 24),
                 Wrap(
                   alignment: WrapAlignment.center,

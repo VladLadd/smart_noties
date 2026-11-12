@@ -11,6 +11,7 @@ import '../providers/notes_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
 import '../models/note_model.dart';
+import '../models/note_filters.dart';
 import '../services/api_config.dart';
 import '../services/nfc_reader_service.dart';
 
@@ -23,11 +24,15 @@ class NotesGridScreen extends StatefulWidget {
 
 class _NotesGridScreenState extends State<NotesGridScreen> {
   final _nfcReader = NfcReaderService();
+  final _searchController = TextEditingController();
+  NoteSection _section = NoteSection.all;
+  DateTimeRange? _dateRange;
   bool _showGrid = true;
   bool _readingNfc = false;
 
   @override
   void dispose() {
+    _searchController.dispose();
     _nfcReader.cancel();
     super.dispose();
   }
@@ -40,6 +45,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
           children: [
             Column(
               children: [
+                _buildFilters(),
                 Expanded(child: _buildNotes()),
                 _buildBottomBar(),
               ],
@@ -51,9 +57,124 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     );
   }
 
+  Widget _buildFilters() {
+    final strings = context.strings;
+    final locale = MaterialLocalizations.of(context);
+    return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (context.watch<AuthProvider>().isGuest)
+              Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(strings.guestModeTitle,
+                      style: Theme.of(context).textTheme.labelLarge)),
+            TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                    hintText: strings.searchNotesHint,
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: strings.clearSearch,
+                            icon: const Icon(Icons.close),
+                            onPressed: () =>
+                                setState(() => _searchController.clear()))),
+                onChanged: (_) => setState(() {})),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 4, children: [
+              for (final section in NoteSection.values)
+                ChoiceChip(
+                    label: Text(switch (section) {
+                      NoteSection.all => strings.allNotes,
+                      NoteSection.incoming => strings.incomingNotes,
+                      NoteSection.created => strings.createdNotes
+                    }),
+                    selected: _section == section,
+                    onSelected: (_) => setState(() => _section = section)),
+              ActionChip(
+                  avatar: const Icon(Icons.date_range, size: 18),
+                  label: Text(_dateRange == null
+                      ? strings.filterByDate
+                      : '${locale.formatShortDate(_dateRange!.start)} – ${locale.formatShortDate(_dateRange!.end)}'),
+                  onPressed: _chooseDateFilter),
+              if (_dateRange != null)
+                ActionChip(
+                    label: Text(strings.resetDateFilter),
+                    onPressed: () => setState(() => _dateRange = null)),
+            ]),
+          ],
+        ));
+  }
+
+  Future<void> _chooseDateFilter() async {
+    final strings = context.readStrings;
+    final now = DateTime.now();
+    final action = await showModalBottomSheet<String>(
+        context: context,
+        builder: (ctx) => SafeArea(
+                child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final option in {
+                  'all': strings.allDates,
+                  'today': strings.today,
+                  'week': strings.lastSevenDays,
+                  'month': strings.lastThirtyDays,
+                  'custom': strings.chooseDateRange
+                }.entries)
+                  ListTile(
+                      title: Text(option.value),
+                      onTap: () => Navigator.pop(ctx, option.key)),
+              ],
+            )));
+    if (!mounted || action == null) return;
+    if (action == 'custom') {
+      final range = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(now.year + 1),
+          initialDateRange: _dateRange);
+      if (range != null && mounted) setState(() => _dateRange = range);
+    } else {
+      setState(() => _dateRange = action == 'all'
+          ? null
+          : DateTimeRange(
+              start: DateTime(
+                  now.year,
+                  now.month,
+                  now.day -
+                      (action == 'week'
+                          ? 6
+                          : action == 'month'
+                              ? 29
+                              : 0)),
+              end: now));
+    }
+  }
+
   Widget _buildNotes() {
-    final notes = context.watch<NotesProvider>().notes;
-    if (notes.isEmpty) return _buildEmptyState();
+    final allNotes = context.watch<NotesProvider>().notes;
+    final notes = filterNotes(allNotes,
+        section: _section,
+        query: _searchController.text,
+        start: _dateRange?.start,
+        end: _dateRange?.end);
+    if (notes.isEmpty) {
+      if (allNotes.isEmpty &&
+          _section == NoteSection.all &&
+          _dateRange == null &&
+          _searchController.text.isEmpty) {
+        return _buildEmptyState();
+      }
+      return Center(
+          child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(context.strings.noMatchingNotes,
+                  textAlign: TextAlign.center)));
+    }
 
     if (!_showGrid) {
       return ListView.separated(
@@ -543,12 +664,13 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
               MaterialPageRoute(builder: (_) => const ProfileScreen()),
             ),
           ),
-          _HiddenNotesButton(
-            active: notesProvider.isHiddenNotesVisible,
-            loading: _readingNfc || notesProvider.unlockingHiddenNotes,
-            remaining: notesProvider.hiddenSessionRemaining,
-            onPressed: _toggleHiddenNotes,
-          ),
+          if (!context.watch<AuthProvider>().isGuest)
+            _HiddenNotesButton(
+              active: notesProvider.isHiddenNotesVisible,
+              loading: _readingNfc || notesProvider.unlockingHiddenNotes,
+              remaining: notesProvider.hiddenSessionRemaining,
+              onPressed: _toggleHiddenNotes,
+            ),
           IconButton(
             tooltip:
                 _showGrid ? context.strings.showList : context.strings.showGrid,

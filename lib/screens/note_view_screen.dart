@@ -17,6 +17,7 @@ import '../services/api_config.dart';
 import '../widgets/note_drawing_canvas.dart';
 import '../widgets/note_drawing_toolbar.dart';
 import '../widgets/voice_message_player.dart';
+import '../widgets/note_attachments.dart';
 import 'video_player_screen.dart';
 
 class NoteViewScreen extends StatefulWidget {
@@ -299,6 +300,13 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                                       color: secondaryTextColor,
                                     ),
                                   ),
+                                if (note.attachmentPaths.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  NoteAttachments(
+                                      paths: note.attachmentPaths,
+                                      token: token,
+                                      password: mediaPassword),
+                                ],
                                 if (note.voicePath != null) ...[
                                   const SizedBox(height: 24),
                                   VoiceMessagePlayer(

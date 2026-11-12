@@ -4,6 +4,9 @@ import 'note_video_model.dart';
 
 class Note {
   final String id;
+  final bool isIncoming;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
   final String title;
   final String body;
   final String? drawingData;
@@ -31,6 +34,9 @@ class Note {
     required this.id,
     required this.title,
     required this.body,
+    this.isIncoming = false,
+    this.createdAt,
+    this.updatedAt,
     this.drawingData,
     this.imagePath,
     this.photoPaths = const [],
@@ -49,6 +55,9 @@ class Note {
 
   Note copyWith({
     String? id,
+    bool? isIncoming,
+    DateTime? createdAt,
+    DateTime? updatedAt,
     String? title,
     String? body,
     String? drawingData,
@@ -74,6 +83,9 @@ class Note {
     final nextVideos = videos ?? this.videos;
     return Note(
       id: id ?? this.id,
+      isIncoming: isIncoming ?? this.isIncoming,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       title: title ?? this.title,
       body: body ?? this.body,
       drawingData: clearDrawingData ? null : (drawingData ?? this.drawingData),
@@ -97,6 +109,9 @@ class Note {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'isIncoming': isIncoming,
+        'createdAt': createdAt?.toUtc().toIso8601String(),
+        'updatedAt': updatedAt?.toUtc().toIso8601String(),
         'title': title,
         'body': body,
         'drawingData': drawingData,
@@ -119,6 +134,9 @@ class Note {
     final videos = NoteVideo.listFromJson(json['videos']);
     return Note(
       id: json['id'] as String,
+      isIncoming: _readBool(json['isIncoming']),
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
       title: json['title'] as String,
       body: json['body'] as String,
       drawingData: _readNullableString(json['drawingData']),

@@ -1,8 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+    show
+        TargetPlatform,
+        defaultTargetPlatform,
+        kIsWeb,
+        LicenseRegistry,
+        LicenseEntryWithLineBreaks;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -15,9 +21,14 @@ import 'screens/login_screen.dart';
 import 'screens/note_edit_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/web_max_width.dart';
+import 'widgets/first_launch_gate.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(['Hershey Text JS'],
+        await rootBundle.loadString('assets/licenses/hersheytext.txt'));
+  });
   runApp(const SmartNotesApp());
 }
 
@@ -29,9 +40,10 @@ class SmartNotesApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => NotesProvider()),
-        ChangeNotifierProvider(create: (_) => IncomingShareProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider(), lazy: false),
+        ChangeNotifierProvider(create: (_) => NotesProvider(), lazy: false),
+        ChangeNotifierProvider(
+            create: (_) => IncomingShareProvider(), lazy: false),
       ],
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) {
@@ -54,9 +66,10 @@ class SmartNotesApp extends StatelessWidget {
             builder: (context, child) => WebMaxWidth(
               child: child ?? const SizedBox.shrink(),
             ),
-            home: const _FaceDownHiddenNotesLock(
+            home: const FirstLaunchGate(
+                child: _FaceDownHiddenNotesLock(
               child: _HomeRouter(),
-            ),
+            )),
           );
         },
       ),
@@ -197,7 +210,7 @@ class _HomeRouterState extends State<_HomeRouter> {
     final auth = context.read<AuthProvider>();
     final notes = context.read<NotesProvider>();
     if (incoming == null ||
-        auth.status != AuthStatus.authenticated ||
+        (auth.status != AuthStatus.authenticated && !auth.isGuest) ||
         notes.loadingServerNotes ||
         notes.shouldLoadServerNotes(auth.token)) {
       return;
@@ -238,6 +251,27 @@ class _HomeRouterState extends State<_HomeRouter> {
     final auth = context.watch<AuthProvider>();
     final notesProvider = context.watch<NotesProvider>();
     final token = auth.token;
+    if (notesProvider.isGuestMode != auth.isGuest) {
+      unawaited(
+          Future.microtask(() => notesProvider.setGuestMode(auth.isGuest)));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (notesProvider.guestLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (auth.isGuest && notesProvider.guestLoadError != null) {
+      return Scaffold(
+          body: Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(context.strings.guestStorageError),
+        TextButton(
+            onPressed: () => notesProvider.setGuestMode(true),
+            child: Text(context.strings.retry)),
+        TextButton(
+            onPressed: () => auth.logout(),
+            child: Text(context.strings.guestSignIn)),
+      ])));
+    }
 
     if (notesProvider.shouldLoadServerNotes(token)) {
       unawaited(

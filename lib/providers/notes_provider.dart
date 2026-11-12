@@ -9,11 +9,81 @@ import '../models/nfc_unlock_model.dart';
 import '../models/video_preview_model.dart';
 import '../services/note_client_crypto.dart';
 import '../services/notes_service.dart';
+import '../services/guest_notes_store.dart';
 
 class NotesProvider extends ChangeNotifier {
   static const hiddenSessionDuration = Duration(minutes: 10);
 
   final _service = NotesService();
+  final GuestNotesStore _guestStore;
+  final List<Note> _guestNotes = [];
+  Future<void> _guestWrites = Future<void>.value();
+  Future<void> _serializeGuestWrite(Future<void> Function() action) {
+    final result = _guestWrites.then((_) => action());
+    _guestWrites =
+        result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    return result;
+  }
+
+  bool _guestMode = false;
+  bool _guestLoading = false;
+  String? guestLoadError;
+  bool get isGuestMode => _guestMode;
+  bool get guestLoading => _guestLoading;
+
+  Future<void> setGuestMode(bool enabled) async {
+    _guestMode = enabled;
+    if (!enabled) {
+      notifyListeners();
+      return;
+    }
+    _guestLoading = true;
+    guestLoadError = null;
+    _hiddenSessionTimer?.cancel();
+    _hiddenAccessToken = null;
+    _hiddenKeyId = null;
+    _hiddenSessionExpiresAt = null;
+    _loadedHiddenAccessToken = null;
+    notifyListeners();
+    try {
+      await _guestWrites;
+      final loaded = await _guestStore.load();
+      _guestNotes
+        ..clear()
+        ..addAll(loaded);
+    } catch (error) {
+      guestLoadError = error.toString();
+    } finally {
+      _guestLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _saveGuestNote(Note note, {bool creating = false}) =>
+      _serializeGuestWrite(() async {
+        if (guestLoadError != null || _guestLoading) {
+          throw StateError('Локальное хранилище недоступно');
+        }
+        final now = DateTime.now();
+        final prepared = await _guestStore.prepare(note.copyWith(
+          id: creating ? 'guest_${now.microsecondsSinceEpoch}' : note.id,
+          createdAt: note.createdAt ?? now,
+          updatedAt: now,
+        ));
+        final next = List<Note>.of(_guestNotes);
+        final index = next.indexWhere((item) => item.id == prepared.id);
+        if (index == -1) {
+          next.insert(0, prepared);
+        } else {
+          next[index] = prepared;
+        }
+        await _guestStore.write(next);
+        _guestNotes
+          ..clear()
+          ..addAll(next);
+        notifyListeners();
+      });
+
   final List<Note> _notes = [];
   bool _loadingServerNotes = false;
   bool _unlockingHiddenNotes = false;
@@ -25,7 +95,8 @@ class NotesProvider extends ChangeNotifier {
   Timer? _hiddenSessionTimer;
 
   List<Note> get notes => List.unmodifiable(
-        _notes.where((note) => !note.isHidden || isHiddenNotesVisible),
+        (_guestMode ? _guestNotes : _notes)
+            .where((note) => !note.isHidden || isHiddenNotesVisible),
       );
   bool get loadingServerNotes => _loadingServerNotes;
   bool get unlockingHiddenNotes => _unlockingHiddenNotes;
@@ -45,14 +116,16 @@ class NotesProvider extends ChangeNotifier {
   }
 
   bool shouldLoadServerNotes(String? token) {
-    return token != null &&
+    return !_guestMode &&
+        token != null &&
         token.isNotEmpty &&
         !_loadingServerNotes &&
         (_loadedToken != token ||
             _loadedHiddenAccessToken != _activeHiddenAccessToken);
   }
 
-  NotesProvider() {
+  NotesProvider({GuestNotesStore? guestStore})
+      : _guestStore = guestStore ?? GuestNotesStore() {
     _loadPendingNotes();
   }
 
@@ -167,6 +240,13 @@ class NotesProvider extends ChangeNotifier {
     required int? userId,
     required String? token,
   }) async {
+    if (_guestMode) {
+      await _saveGuestNote(note, creating: true);
+      return;
+    }
+    if (note.id.startsWith('guest_')) {
+      throw StateError('Локальные заметки не синхронизируются');
+    }
     if (userId == null || token == null || token.isEmpty) {
       await _saveLocally(note);
       return;
@@ -300,6 +380,8 @@ class NotesProvider extends ChangeNotifier {
         : note;
     final pending = noteToSave.copyWith(
       id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+      createdAt: note.createdAt ?? DateTime.now(),
+      updatedAt: DateTime.now(),
       isPending: true,
     );
     _notes.insert(0, pending);
@@ -342,6 +424,9 @@ class NotesProvider extends ChangeNotifier {
     required int userId,
     required String token,
   }) async {
+    if (_guestMode || note.id.startsWith('guest_')) {
+      throw StateError('Локальные заметки не синхронизируются');
+    }
     final created = await _service.createNote(
       note: note,
       userId: userId,
@@ -359,6 +444,13 @@ class NotesProvider extends ChangeNotifier {
     Note updated, {
     required String? token,
   }) async {
+    if (_guestMode) {
+      await _saveGuestNote(updated);
+      return;
+    }
+    if (updated.id.startsWith('guest_')) {
+      throw StateError('Локальные заметки не синхронизируются');
+    }
     final index = _notes.indexWhere((n) => n.id == updated.id);
     if (index != -1) {
       _notes[index] = updated;
@@ -400,6 +492,14 @@ class NotesProvider extends ChangeNotifier {
     required String? token,
   }) async {
     if (!note.hasProtection) return note;
+    if (_guestMode) {
+      try {
+        final unlocked = await decryptNoteFromClient(note, password);
+        return unlocked.copyWith(protectionPassword: password);
+      } catch (_) {
+        throw Exception('Неверный пароль');
+      }
+    }
 
     if (note.protectionPassword != null &&
         note.protectionPassword!.isNotEmpty) {
@@ -437,6 +537,19 @@ class NotesProvider extends ChangeNotifier {
   }
 
   Future<void> deleteNote(String id, {String? token}) async {
+    if (_guestMode) {
+      await _serializeGuestWrite(() async {
+        final next = _guestNotes.where((note) => note.id != id).toList();
+        await _guestStore.write(next);
+        _guestNotes
+          ..clear()
+          ..addAll(next);
+        notifyListeners();
+        await _guestStore.removeMedia(id);
+      });
+      return;
+    }
+
     final index = _notes.indexWhere((n) => n.id == id);
     if (index == -1) return;
     final note = _notes[index];

@@ -13,6 +13,7 @@ import '../services/nfc_admin_service.dart';
 import '../services/api_config.dart';
 import '../services/profile_service.dart';
 import 'faq_screen.dart';
+import 'guest_profile_screen.dart';
 
 enum _AvatarAction { choose, remove }
 
@@ -47,6 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.read<AuthProvider>().isGuest) return;
       _loadTokenRequests();
       _loadProfile();
     });
@@ -587,6 +589,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (context.watch<AuthProvider>().isGuest) {
+      return const GuestProfileScreen();
+    }
     final notesCount = context.watch<NotesProvider>().notes.length;
     final strings = context.strings;
 

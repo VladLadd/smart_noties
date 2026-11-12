@@ -73,18 +73,22 @@ List<FaqEntry> nfcFaq(AppLanguage language) => language == AppLanguage.ru
 
 List<FaqEntry> generalFaq(AppLanguage language) => language == AppLanguage.ru
     ? const [
+        FaqEntry('guest', 'Можно ли пользоваться без регистрации?',
+            'В приложениях iOS и Android выберите «Продолжить без регистрации» на экране входа. Заметки и вложения сохраняются только на этом устройстве и работают без интернета. При удалении приложения данные могут быть удалены. Вход в аккаунт не отправляет эти заметки в облако. В браузере требуется вход в аккаунт.'),
         FaqEntry('save', 'Как создать и сохранить заметку?',
             'Нажмите «+» в списке заметок, заполните заголовок и содержимое, добавьте нужные вложения и нажмите «Сохранить». До сохранения изменения могут быть потеряны при закрытии приложения.'),
         FaqEntry('storage', 'Сколько места доступно для заметок?',
-            'Для одного пользователя доступно 2 ГБ. Использование показано в профиле в разделе «Хранилище заметок». Медиафайлы тоже занимают место. При достижении лимита удалите ненужные заметки и обновите информацию в профиле.'),
+            'Для аккаунта доступно 2 ГБ в облаке. Гостевые заметки занимают память устройства и не входят в облачную квоту. Использование показано в профиле в разделе «Хранилище заметок». Медиафайлы тоже занимают место. При достижении лимита удалите ненужные заметки и обновите информацию в профиле.'),
         FaqEntry('account', 'Можно ли добавить телефон или email к аккаунту?',
             'Да. Если в профиле не указан email или телефон, нажмите «Добавить email» или «Добавить телефон» и следуйте шагам подтверждения. Используйте контакт, который ещё не связан с другим аккаунтом. Это добавляет способ входа к текущему аккаунту, а не объединяет два существующих аккаунта.'),
       ]
     : const [
+        FaqEntry('guest', 'Can I use the app without registering?',
+            'On iOS and Android, choose Continue without an account on the sign-in screen. Notes and attachments stay on this device and work offline. Uninstalling the app may remove them. Signing in does not upload these notes to the cloud. The web version requires an account.'),
         FaqEntry('save', 'How do I create and save a note?',
             'Tap + on the notes list, enter a title and content, add any attachments and tap Save. Unsaved edits may be lost if you close the app.'),
         FaqEntry('storage', 'How much storage do I have?',
-            'Each user has 2 GB. Your profile shows usage under Note storage. Media files also take up space. If you reach the limit, delete unwanted notes and refresh the storage information in your profile.'),
+            'Each account has 2 GB of cloud storage. Guest notes use device storage and do not count towards the cloud quota. Your profile shows usage under Note storage. Media files also take up space. If you reach the limit, delete unwanted notes and refresh the storage information in your profile.'),
         FaqEntry('account', 'Can I add a phone number or email to my account?',
             'Yes. If your profile has no email or phone number, tap Add email or Add phone and follow the verification steps. Use a contact that is not linked to another account. This adds a sign-in method to the current account; it does not merge two existing accounts.'),
       ];

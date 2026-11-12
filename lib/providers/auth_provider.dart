@@ -2,12 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 
-enum AuthStatus { checking, authenticated, unauthenticated }
+enum AuthStatus { checking, authenticated, unauthenticated, guest }
 
 class AuthProvider extends ChangeNotifier {
   static const _sessionCheckInterval = Duration(seconds: 15);
+  static bool get supportsGuestMode =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android);
+  bool get isGuest => status == AuthStatus.guest;
   final _service = AuthService();
   Timer? _sessionTimer;
   bool _sessionCheckInProgress = false;
@@ -24,7 +32,28 @@ class AuthProvider extends ChangeNotifier {
     _tryAutoLogin();
   }
 
+  Future<void> enterGuestMode() async {
+    if (!supportsGuestMode) return;
+    _sessionTimer?.cancel();
+    await _service.clearToken();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('guest_mode', true);
+    token = null;
+    userId = null;
+    user = null;
+    email = null;
+    forcedLogoutCode = null;
+    status = AuthStatus.guest;
+    notifyListeners();
+  }
+
   Future<void> _tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (supportsGuestMode && prefs.getBool('guest_mode') == true) {
+      status = AuthStatus.guest;
+      notifyListeners();
+      return;
+    }
     final savedToken = await _service.loadToken();
     if (savedToken == null || savedToken.isEmpty) {
       status = AuthStatus.unauthenticated;
@@ -99,6 +128,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('guest_mode');
     _sessionTimer?.cancel();
     _sessionTimer = null;
     if (token != null) await _service.logout(token!);
@@ -119,6 +150,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _persist(({String token, AuthUser user}) result) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('guest_mode');
     token = result.token;
     user = result.user;
     userId =

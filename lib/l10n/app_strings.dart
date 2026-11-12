@@ -51,6 +51,38 @@ class AppStrings {
       ? 'Не удалось преобразовать HEIC. Проверьте подключение и повторите выбор фото.'
       : 'Could not convert HEIC. Check your connection and select the photo again.';
 
+  String get continueAsGuest =>
+      _ru ? 'Продолжить без регистрации' : 'Continue without an account';
+  String get guestModeTitle =>
+      _ru ? 'Только на этом устройстве' : 'On this device only';
+  String get guestModeDescription => _ru
+      ? 'Заметки и вложения хранятся в приложении на этом устройстве. Они доступны без интернета и не отправляются на сервер. Удаление приложения может удалить эти данные. При входе в аккаунт локальные заметки не переносятся в облако. NFC и облачные функции доступны после входа.'
+      : 'Notes and attachments stay in the app on this device. They work offline and are not sent to the server. Uninstalling the app may remove this data. Signing in does not move local notes to the cloud. NFC and cloud features require an account.';
+  String get guestSignIn =>
+      _ru ? 'Войти или зарегистрироваться' : 'Sign in or register';
+  String get guestStorageError => _ru
+      ? 'Не удалось открыть локальные заметки. Данные не перезаписаны.'
+      : 'Could not open local notes. Your data has not been overwritten.';
+  String get retry => _ru ? 'Повторить' : 'Retry';
+  String get searchNotesHint =>
+      _ru ? 'Поиск по заголовку и тексту' : 'Search titles and text';
+  String get clearSearch => _ru ? 'Очистить поиск' : 'Clear search';
+  String get allNotes => _ru ? 'Все' : 'All';
+  String get incomingNotes => _ru ? 'Входящие' : 'Incoming';
+  String get createdNotes => _ru ? 'Созданные' : 'Created';
+  String get noMatchingNotes => _ru
+      ? 'Заметки не найдены. Измените раздел, поиск или даты. Поиск по тексту защищённых паролем заметок недоступен.'
+      : 'No matching notes. Change the section, search or dates. Password-protected note contents are not searched.';
+  String get filterByDate => _ru ? 'Дата создания' : 'Creation date';
+  String get resetDateFilter => _ru ? 'Сбросить даты' : 'Reset dates';
+  String get allDates => _ru ? 'За всё время' : 'All time';
+  String get today => _ru ? 'Сегодня' : 'Today';
+  String get lastSevenDays => _ru ? 'Последние 7 дней' : 'Last 7 days';
+  String get lastThirtyDays => _ru ? 'Последние 30 дней' : 'Last 30 days';
+  String get chooseDateRange => _ru ? 'Выбрать период' : 'Choose a date range';
+
+  String get firstLaunchWelcome => _ru ? 'Добро пожаловать' : 'Welcome';
+
   String get languageLabel => _ru ? 'Язык' : 'Language';
   String get russian => _ru ? 'Русский' : 'Russian';
   String get english => _ru ? 'Английский' : 'English';
