@@ -128,6 +128,11 @@ class IncomingShareProvider extends ChangeNotifier {
     return share;
   }
 
+  void retry(IncomingShare share) {
+    _pending.addFirst(share);
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();

@@ -498,7 +498,9 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       final photoPaths = uploadedPhotoPaths;
       for (var i = 0; i < _attachmentPaths.length; i++) {
         final path = _attachmentPaths[i];
-        if (!auth.isGuest && !isRemoteMedia(path)) {
+        if (!auth.isGuest &&
+            _currentNote?.isPending != true &&
+            !isRemoteMedia(path)) {
           if (auth.token == null || auth.token!.isEmpty) {
             throw Exception(strings.attachmentNeedsConnection);
           }
@@ -514,6 +516,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       String? voicePath = _recordedPath;
       if (voicePath != null &&
           !isRemoteMedia(voicePath) &&
+          !auth.isGuest &&
+          _currentNote?.isPending != true &&
           auth.token != null &&
           auth.token!.isNotEmpty) {
         final file = File(voicePath);
@@ -612,7 +616,11 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     if (path == null || path.isEmpty || path.startsWith('assets/')) {
       return path;
     }
-    if (isRemoteMedia(path) || auth.token == null || auth.token!.isEmpty) {
+    if (auth.isGuest ||
+        _currentNote?.isPending == true ||
+        isRemoteMedia(path) ||
+        auth.token == null ||
+        auth.token!.isEmpty) {
       return path;
     }
 
@@ -2253,40 +2261,47 @@ class _NoteProtectionDialogState extends State<_NoteProtectionDialog> {
     final strings = context.strings;
     return AlertDialog(
       title: Text(strings.noteProtection),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _passwordCtrl,
-            obscureText: _obscure,
-            decoration: InputDecoration(
-              labelText: strings.password,
-              errorText: _errorText,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscure ? Icons.visibility_off : Icons.visibility,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      constraints: const BoxConstraints(maxWidth: 560),
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: _obscure,
+              decoration: InputDecoration(
+                labelText: strings.password,
+                errorText: _errorText,
+                errorMaxLines: 4,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscure ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () => setState(() => _obscure = !_obscure),
                 ),
-                onPressed: () => setState(() => _obscure = !_obscure),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _confirmCtrl,
-            obscureText: _obscureConfirm,
-            decoration: InputDecoration(
-              labelText: strings.confirmPassword,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+            const SizedBox(height: 12),
+            TextField(
+              controller: _confirmCtrl,
+              obscureText: _obscureConfirm,
+              decoration: InputDecoration(
+                labelText: strings.confirmPassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
                 ),
-                onPressed: () =>
-                    setState(() => _obscureConfirm = !_obscureConfirm),
               ),
+              onSubmitted: (_) => _save(),
             ),
-            onSubmitted: (_) => _save(),
-          ),
-        ],
+          ],
+        ),
       ),
       actions: [
         if (widget.isProtected)

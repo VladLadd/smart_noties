@@ -293,27 +293,31 @@ class _HandwritingPainter extends CustomPainter {
   final double progress;
   final Color startColor;
   final Color endColor;
-  static final _strokes = _makeStrokes();
+  static final _layout = _makeStrokes();
+  static final _strokes = _layout.$1;
   static final _metrics =
       _strokes.expand((path) => path.computeMetrics()).toList();
   static final _totalLength =
       _metrics.fold<double>(0, (sum, metric) => sum + metric.length);
-  static const _width = 145.64;
+  static final _width = _layout.$2;
+  static const _strokeWidth = 2.15;
+  static const _letterGap = 3.8;
   _HandwritingPainter(this.progress, this.startColor, this.endColor);
 
-  static List<Path> _makeStrokes() {
+  static (List<Path>, double) _makeStrokes() {
     final paths = <Path>[];
-    var x = 0.0;
+    var x = 2.0;
     for (final letter in 'smart notes'.split('')) {
       if (letter == ' ') {
-        x += 10;
+        x += 11;
         continue;
       }
       final glyph = _glyphs[letter]!;
+      final letterPaths = <Path>[];
       for (final stroke in glyph.$2) {
         final points = <Offset>[];
         for (var i = 0; i < stroke.length; i += 2) {
-          points.add(Offset(x + stroke[i], stroke[i + 1]));
+          points.add(Offset(stroke[i], stroke[i + 1]));
         }
         final path = Path()..moveTo(points.first.dx, points.first.dy);
         // Сглаживаем штрихи, сохраняя порядок движения пера и отрывы от бумаги.
@@ -326,11 +330,19 @@ class _HandwritingPainter extends CustomPainter {
           final c2 = next - (after - current) / 6;
           path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, next.dx, next.dy);
         }
-        paths.add(path);
+        letterPaths.add(path);
       }
-      x += glyph.$1;
+      // Шаг задаётся фактическими границами буквы, а не шириной шрифта:
+      // широкие m/n и выходные штрихи больше не пересекают соседние буквы.
+      final bounds = letterPaths
+          .map((path) => path.getBounds())
+          .reduce((a, b) => a.expandToInclude(b));
+      for (final path in letterPaths) {
+        paths.add(path.shift(Offset(x - bounds.left, 0)));
+      }
+      x += bounds.width + _letterGap;
     }
-    return paths;
+    return (paths, x - _letterGap + 2);
   }
 
   @override
@@ -341,11 +353,11 @@ class _HandwritingPainter extends CustomPainter {
     canvas.scale(scale);
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.82
+      ..strokeWidth = _strokeWidth
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..shader = ui.Gradient.linear(
-          const Offset(0, 0), const Offset(_width, 24), [startColor, endColor]);
+          const Offset(0, 0), Offset(_width, 24), [startColor, endColor]);
     var remaining = _totalLength * progress.clamp(0.0, 1.0);
     for (final metric in _metrics) {
       if (remaining <= 0) break;

@@ -10,12 +10,17 @@ import '../models/video_preview_model.dart';
 import '../services/note_client_crypto.dart';
 import '../services/notes_service.dart';
 import '../services/guest_notes_store.dart';
+import '../services/api_config.dart';
+import '../services/shared_note_importer.dart';
+import 'incoming_share_provider.dart';
 
 class NotesProvider extends ChangeNotifier {
   static const hiddenSessionDuration = Duration(minutes: 10);
 
   final _service = NotesService();
   final GuestNotesStore _guestStore;
+  final GuestNotesStore _pendingStore;
+  late final Future<void> _pendingLoaded;
   final List<Note> _guestNotes = [];
   Future<void> _guestWrites = Future<void>.value();
   Future<void> _serializeGuestWrite(Future<void> Function() action) {
@@ -95,7 +100,12 @@ class NotesProvider extends ChangeNotifier {
   Timer? _hiddenSessionTimer;
 
   List<Note> get notes => List.unmodifiable(
-        (_guestMode ? _guestNotes : _notes)
+        (_guestMode
+                ? [
+                    ..._guestNotes,
+                    ..._notes.where((n) => n.isPending && n.isIncoming),
+                  ]
+                : _notes)
             .where((note) => !note.isHidden || isHiddenNotesVisible),
       );
   bool get loadingServerNotes => _loadingServerNotes;
@@ -124,9 +134,63 @@ class NotesProvider extends ChangeNotifier {
             _loadedHiddenAccessToken != _activeHiddenAccessToken);
   }
 
-  NotesProvider({GuestNotesStore? guestStore})
-      : _guestStore = guestStore ?? GuestNotesStore() {
-    _loadPendingNotes();
+  NotesProvider({GuestNotesStore? guestStore, GuestNotesStore? pendingStore})
+      : _guestStore = guestStore ?? GuestNotesStore(),
+        _pendingStore = pendingStore ??
+            GuestNotesStore(
+                directoryName: 'pending_media', idPrefix: 'local_') {
+    _pendingLoaded = _loadPendingNotes();
+  }
+
+  Future<void> importShare(IncomingShare share,
+      {SharedNoteImporter importer = const SharedNoteImporter()}) async {
+    final temporary =
+        await Directory.systemTemp.createTemp('smart-notes-share-');
+    final now = DateTime.now();
+    final note = importer.original(share).copyWith(
+        id: 'local_${now.microsecondsSinceEpoch}',
+        createdAt: now,
+        updatedAt: now,
+        isPending: true);
+    try {
+      // Входящие принадлежат устройству: видны и гостю, и после входа.
+      // Самостоятельной синхронизации этой очереди нет.
+      await _serializeGuestWrite(() async {
+        await _pendingLoaded;
+        final durable = await _pendingStore.prepare(note);
+        // Обновляем интерфейс только после успешной записи на диск.
+        await _service.savePendingNotes([durable, ..._notes]);
+        _notes.insert(0, durable);
+        notifyListeners();
+      });
+      // Сначала сохраняем источник. Загрузка превью не должна задерживать
+      // сохранение или приводить к потере заметки при закрытии приложения.
+      try {
+        final preview = await importer.prepare(share, temporary);
+        final list = _notes;
+        final index = list.indexWhere((item) => item.id == note.id);
+        if (index < 0) return;
+        final current = list[index];
+        // Пользователь уже начал править, удалил или отправил заметку.
+        if (current.title != note.title ||
+            current.body != note.body ||
+            current.hasProtection ||
+            !current.isPending) {
+          return;
+        }
+        await updateNote(
+            current.copyWith(
+                title: preview.title,
+                body: preview.body,
+                imagePath: current.imagePath ?? preview.imagePath),
+            token: null);
+      } catch (error) {
+        // ignore: avoid_print
+        print('[SHARE] preview unavailable: $error');
+      }
+    } finally {
+      await temporary.delete(recursive: true);
+    }
   }
 
   Future<void> _loadPendingNotes() async {
@@ -427,8 +491,37 @@ class NotesProvider extends ChangeNotifier {
     if (_guestMode || note.id.startsWith('guest_')) {
       throw StateError('Локальные заметки не синхронизируются');
     }
+    final password = note.hasProtection ? note.protectionPassword : null;
+    Future<String?> image(String? path) async {
+      if (path == null || path.startsWith('assets/') || isRemoteMedia(path)) {
+        return path;
+      }
+      return _service.uploadImage(
+          file: File(path), token: token, mediaPassword: password);
+    }
+
+    final photos = <String>[];
+    for (final path in note.photoPaths) {
+      photos.add((await image(path))!);
+    }
+    final attachments = <String>[];
+    for (final path in note.attachmentPaths) {
+      attachments.add(isRemoteMedia(path)
+          ? path
+          : await _service.uploadAttachment(
+              file: XFile(path), token: token, mediaPassword: password));
+    }
+    final voice = note.voicePath;
+    final uploaded = note.copyWith(
+        imagePath: await image(note.imagePath),
+        photoPaths: photos,
+        attachmentPaths: attachments,
+        voicePath: voice == null || isRemoteMedia(voice)
+            ? voice
+            : await _service.uploadVoice(
+                file: File(voice), token: token, mediaPassword: password));
     final created = await _service.createNote(
-      note: note,
+      note: uploaded,
       userId: userId,
       token: token,
     );
@@ -444,12 +537,25 @@ class NotesProvider extends ChangeNotifier {
     Note updated, {
     required String? token,
   }) async {
-    if (_guestMode) {
+    if (_guestMode && !updated.id.startsWith('local_')) {
       await _saveGuestNote(updated);
       return;
     }
     if (updated.id.startsWith('guest_')) {
       throw StateError('Локальные заметки не синхронизируются');
+    }
+    if (updated.isPending && updated.isIncoming) {
+      await _serializeGuestWrite(() async {
+        final durable = await _pendingStore.prepare(updated);
+        final next =
+            _notes.map((n) => n.id == updated.id ? durable : n).toList();
+        await _service.savePendingNotes(next);
+        _notes
+          ..clear()
+          ..addAll(next);
+        notifyListeners();
+      });
+      return;
     }
     final index = _notes.indexWhere((n) => n.id == updated.id);
     if (index != -1) {
@@ -537,7 +643,7 @@ class NotesProvider extends ChangeNotifier {
   }
 
   Future<void> deleteNote(String id, {String? token}) async {
-    if (_guestMode) {
+    if (_guestMode && !id.startsWith('local_')) {
       await _serializeGuestWrite(() async {
         final next = _guestNotes.where((note) => note.id != id).toList();
         await _guestStore.write(next);
@@ -553,6 +659,19 @@ class NotesProvider extends ChangeNotifier {
     final index = _notes.indexWhere((n) => n.id == id);
     if (index == -1) return;
     final note = _notes[index];
+
+    if (note.isPending) {
+      await _serializeGuestWrite(() async {
+        final next = _notes.where((n) => n.id != id).toList();
+        await _service.savePendingNotes(next);
+        _notes
+          ..clear()
+          ..addAll(next);
+        notifyListeners();
+        await _pendingStore.removeMedia(id);
+      });
+      return;
+    }
 
     // Серверную заметку (уже синхронизированную) удаляем на бэкенде —
     // там же удалится связанный аудио-файл. Локальные/pending удаляем только тут.

@@ -81,8 +81,6 @@ class AppStrings {
   String get lastThirtyDays => _ru ? 'Последние 30 дней' : 'Last 30 days';
   String get chooseDateRange => _ru ? 'Выбрать период' : 'Choose a date range';
 
-  String get firstLaunchWelcome => _ru ? 'Добро пожаловать' : 'Welcome';
-
   String get languageLabel => _ru ? 'Язык' : 'Language';
   String get russian => _ru ? 'Русский' : 'Russian';
   String get english => _ru ? 'Английский' : 'English';
@@ -112,6 +110,9 @@ class AppStrings {
   String get check => _ru ? 'Проверить' : 'Check';
   String get back => _ru ? 'Назад' : 'Back';
   String get discard => _ru ? 'Удалить черновик' : 'Discard draft';
+  String get sharedNoteSaved => _ru
+      ? 'Заметка сохранена на устройстве во «Входящих»'
+      : 'Note saved on this device in Inbox';
   String get discardSharedNoteTitle =>
       _ru ? 'Закрыть заметку?' : 'Discard shared note?';
   String get discardSharedNoteMessage => _ru

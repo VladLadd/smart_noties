@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -77,20 +76,10 @@ void main() {
             key: capture,
             child: WelcomeScreen(animate: false, onFinished: () {}))));
     await tester.pumpAndSettle();
-    expect(find.text('Добро пожаловать'), findsOneWidget);
+    expect(find.text('Добро пожаловать'), findsNothing);
+    expect(find.byType(HandwrittenWordmark), findsOneWidget);
     expect(tester.takeException(), isNull);
     if (Platform.environment['SMART_NOTES_CAPTURE_WELCOME'] == '1') {
-      final systemFont = File('/System/Library/Fonts/Supplemental/Arial.ttf');
-      if (systemFont.existsSync()) {
-        await tester.runAsync(() async {
-          final font = FontLoader('Roboto')
-            ..addFont(Future.value(
-                ByteData.sublistView(await systemFont.readAsBytes())));
-          await font.load();
-        });
-        await tester.pump();
-      }
-
       await tester.runAsync(() async {
         final boundary = capture.currentContext!.findRenderObject()!
             as RenderRepaintBoundary;

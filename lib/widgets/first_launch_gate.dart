@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../providers/locale_provider.dart';
 import 'handwritten_wordmark.dart';
 
 const welcomeCompletedKey = 'welcome_completed_v1';
@@ -196,27 +195,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                                             0xFFB58AFF)
                                                         : const Color(
                                                             0xFF8752E8)),
-                                                const SizedBox(height: 18),
-                                                Opacity(
-                                                    opacity: _reduceMotion
-                                                        ? 1
-                                                        : const Interval(
-                                                                0.76, 0.90)
-                                                            .transform(value),
-                                                    child: Text(
-                                                      context.strings
-                                                          .firstLaunchWelcome,
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .bodyLarge
-                                                          ?.copyWith(
-                                                              color: scheme
-                                                                  .onSurfaceVariant,
-                                                              letterSpacing:
-                                                                  0.5),
-                                                    )),
                                               ]),
                                         )),
                                   )),

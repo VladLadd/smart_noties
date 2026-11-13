@@ -7,12 +7,20 @@ import 'note_client_crypto.dart';
 /// Отдельное хранилище: гостевые заметки не входят в очередь синхронизации.
 class GuestNotesStore {
   final Future<Directory> Function()? directoryProvider;
-  GuestNotesStore({this.directoryProvider});
+  final String directoryName;
+  final String idPrefix;
+  GuestNotesStore(
+      {this.directoryProvider,
+      this.directoryName = 'guest_notes',
+      this.idPrefix = 'guest_'});
+
+  bool _validId(String id) =>
+      RegExp('^${RegExp.escape(idPrefix)}[0-9]+\$').hasMatch(id);
 
   Future<Directory> _root() async {
     final base =
         await (directoryProvider?.call() ?? getApplicationSupportDirectory());
-    return Directory('${base.path}/guest_notes').create(recursive: true);
+    return Directory('${base.path}/$directoryName').create(recursive: true);
   }
 
   Future<List<Note>> load() async {
@@ -26,7 +34,7 @@ class GuestNotesStore {
 
   Future<Note> prepare(Note note) async {
     final root = await _root();
-    if (!RegExp(r'^guest_[0-9]+$').hasMatch(note.id)) {
+    if (!_validId(note.id)) {
       throw const FormatException(
           'Некорректный идентификатор локальной заметки');
     }
@@ -36,6 +44,11 @@ class GuestNotesStore {
     Future<String?> copy(String? path) async {
       if (path == null || path.isEmpty) return null;
       if (path.startsWith('assets/')) return path;
+      if (path.startsWith('/api/') ||
+          path.startsWith('https://') ||
+          path.startsWith('http://')) {
+        return path;
+      }
       if (path.startsWith('${dir.path}/')) return path;
       final source = File(path);
       if (!await source.exists()) {
@@ -60,7 +73,7 @@ class GuestNotesStore {
       voicePath: await copy(note.voicePath),
       photoPaths: photos,
       attachmentPaths: files,
-      isPending: false,
+      isPending: note.isPending,
     );
     if (durable.hasProtection) {
       final password = durable.protectionPassword;
@@ -83,7 +96,7 @@ class GuestNotesStore {
   }
 
   Future<void> removeMedia(String id) async {
-    if (!RegExp(r'^guest_[0-9]+$').hasMatch(id)) return;
+    if (!_validId(id)) return;
     final root = await _root();
     final dir = Directory('${root.path}/$id');
     if (await dir.exists()) await dir.delete(recursive: true);

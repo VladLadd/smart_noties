@@ -18,7 +18,6 @@ import 'providers/auth_provider.dart';
 import 'providers/incoming_share_provider.dart';
 import 'screens/notes_grid_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/note_edit_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/web_max_width.dart';
 import 'widgets/first_launch_gate.dart';
@@ -210,9 +209,7 @@ class _HomeRouterState extends State<_HomeRouter> {
     final auth = context.read<AuthProvider>();
     final notes = context.read<NotesProvider>();
     if (incoming == null ||
-        (auth.status != AuthStatus.authenticated && !auth.isGuest) ||
-        notes.loadingServerNotes ||
-        notes.shouldLoadServerNotes(auth.token)) {
+        (auth.status != AuthStatus.authenticated && !auth.isGuest)) {
       return;
     }
 
@@ -224,12 +221,24 @@ class _HomeRouterState extends State<_HomeRouter> {
         _openingShare = false;
         return;
       }
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => NoteEditScreen(incomingShare: share),
-        ),
-      );
-      if (mounted) setState(() => _openingShare = false);
+      try {
+        await notes.importShare(share);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.readStrings.sharedNoteSaved)));
+        }
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(context.readStrings.errorMessage(error)),
+              action: SnackBarAction(
+                  label: context.readStrings.retry,
+                  onPressed: () =>
+                      context.read<IncomingShareProvider>().retry(share))));
+        }
+      } finally {
+        if (mounted) setState(() => _openingShare = false);
+      }
     });
   }
 
@@ -273,6 +282,7 @@ class _HomeRouterState extends State<_HomeRouter> {
       ])));
     }
 
+    _openPendingShareWhenReady();
     if (notesProvider.shouldLoadServerNotes(token)) {
       unawaited(
         Future.microtask(
@@ -290,7 +300,6 @@ class _HomeRouterState extends State<_HomeRouter> {
       );
     }
 
-    _openPendingShareWhenReady();
     return const NotesGridScreen();
   }
 }
