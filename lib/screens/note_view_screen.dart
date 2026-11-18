@@ -18,6 +18,7 @@ import '../widgets/note_drawing_canvas.dart';
 import '../widgets/note_drawing_toolbar.dart';
 import '../widgets/voice_message_player.dart';
 import '../widgets/note_attachments.dart';
+import '../widgets/note_location_card.dart';
 import 'video_player_screen.dart';
 
 class NoteViewScreen extends StatefulWidget {
@@ -300,6 +301,10 @@ class _NoteViewScreenState extends State<NoteViewScreen> {
                                       color: secondaryTextColor,
                                     ),
                                   ),
+                                if (note.location != null) ...[
+                                  const SizedBox(height: 16),
+                                  NoteLocationCard(location: note.location!),
+                                ],
                                 if (note.attachmentPaths.isNotEmpty) ...[
                                   const SizedBox(height: 16),
                                   NoteAttachments(

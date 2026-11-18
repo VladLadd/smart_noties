@@ -109,6 +109,33 @@ class AppStrings {
   String get add => _ru ? 'Добавить' : 'Add';
   String get check => _ru ? 'Проверить' : 'Check';
   String get back => _ru ? 'Назад' : 'Back';
+  String get location => _ru ? 'Геометка' : 'Location';
+  String get currentLocation =>
+      _ru ? 'Моё местоположение' : 'Use current location';
+  String get locationName =>
+      _ru ? 'Название места (необязательно)' : 'Place name (optional)';
+  String get latitude => _ru ? 'Широта' : 'Latitude';
+  String get longitude => _ru ? 'Долгота' : 'Longitude';
+  String get invalidLatitude =>
+      _ru ? 'Введите широту от −90 до 90' : 'Enter latitude from −90 to 90';
+  String get invalidLongitude => _ru
+      ? 'Введите долготу от −180 до 180'
+      : 'Enter longitude from −180 to 180';
+  String get openInMaps => _ru ? 'Открыть в картах' : 'Open in maps';
+  String get openMapInBrowser =>
+      _ru ? 'Открыть карту в браузере' : 'Open map in browser';
+  String get mapOpenError =>
+      _ru ? 'Не удалось открыть карту' : 'Could not open the map';
+  String get locationServiceOff => _ru
+      ? 'Включите геолокацию или введите координаты вручную'
+      : 'Enable location services or enter coordinates manually';
+  String get locationPermissionDenied => _ru
+      ? 'Разрешите доступ к геолокации или введите координаты вручную'
+      : 'Allow location access or enter coordinates manually';
+  String get locationUnavailable => _ru
+      ? 'Не удалось определить местоположение. Попробуйте ещё раз или введите координаты вручную'
+      : 'Could not get your location. Retry or enter coordinates manually';
+  String get locationSettings => _ru ? 'Открыть настройки' : 'Open settings';
   String get discard => _ru ? 'Удалить черновик' : 'Discard draft';
   String get sharedNoteSaved => _ru
       ? 'Заметка сохранена на устройстве во «Входящих»'

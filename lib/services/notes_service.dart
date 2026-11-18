@@ -55,6 +55,7 @@ class NotesService {
       'title': requestNote.title,
       'body': requestNote.body,
       'drawingData': requestNote.drawingData ?? '',
+      'locationData': requestNote.locationData ?? '',
       'userId': userId,
       'color': requestNote.color.toARGB32(),
       'isVoice': requestNote.isVoice,
@@ -79,6 +80,7 @@ class NotesService {
       logBody['title'] = '***';
       logBody['body'] = '***';
       logBody['drawingData'] = '***';
+      logBody['locationData'] = '***';
     }
     if ((logBody['protectionPassword'] as String).isNotEmpty) {
       logBody['protectionPassword'] = '***';
@@ -121,6 +123,7 @@ class NotesService {
       'title': requestNote.title,
       'body': requestNote.body,
       'drawingData': requestNote.drawingData ?? '',
+      'locationData': requestNote.locationData ?? '',
       'color': requestNote.color.toARGB32(),
       'isVoice': requestNote.isVoice,
       'isVideo': requestNote.isVideo,
@@ -144,6 +147,7 @@ class NotesService {
       logBody['title'] = '***';
       logBody['body'] = '***';
       logBody['drawingData'] = '***';
+      logBody['locationData'] = '***';
     }
     if ((logBody['protectionPassword'] as String).isNotEmpty) {
       logBody['protectionPassword'] = '***';

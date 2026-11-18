@@ -55,6 +55,8 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   open_filex: ^4.7.0
   receive_sharing_intent: 1.8.1
+  geolocator: ^13.0.4
+  map_launcher: ^3.5.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -4,6 +4,8 @@ PODS:
     - Flutter
     - flutter_sound_core (= 9.28.0)
   - flutter_sound_core (9.28.0)
+  - map_launcher (0.0.1):
+    - Flutter
   - nfc_manager (0.0.1):
     - Flutter
   - open_filex (0.0.2):
@@ -18,6 +20,7 @@ PODS:
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_sound (from `.symlinks/plugins/flutter_sound/ios`)
+  - map_launcher (from `.symlinks/plugins/map_launcher/ios`)
   - nfc_manager (from `.symlinks/plugins/nfc_manager/ios`)
   - open_filex (from `.symlinks/plugins/open_filex/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
@@ -33,6 +36,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_sound:
     :path: ".symlinks/plugins/flutter_sound/ios"
+  map_launcher:
+    :path: ".symlinks/plugins/map_launcher/ios"
   nfc_manager:
     :path: ".symlinks/plugins/nfc_manager/ios"
   open_filex:
@@ -48,12 +53,13 @@ SPEC CHECKSUMS:
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
   flutter_sound: b9236a5875299aaa4cef1690afd2f01d52a3f890
   flutter_sound_core: 427465f72d07ab8c3edbe8ffdde709ddacd3763c
+  map_launcher: fe43bda6720bb73c12fcc1bdd86123ff49a4d4d6
   nfc_manager: 9c40fe22528ab871ca11e52ea8b95790e9d92ca2
   open_filex: 432f3cd11432da3e39f47fcc0df2b1603854eff1
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   receive_sharing_intent: 222384f00ffe7e952bbfabaa9e3967cb87e5fe00
   sensors_plus: 2ba4ccef05473d428576bd640f0409c833a9bdea
 
-PODFILE CHECKSUM: 4d229ee3956a149bf6b48cb0b27b062192d43ee4
+PODFILE CHECKSUM: 7e3d7d3ff0b98c3524df399ee6041a6e9580366a
 
 COCOAPODS: 1.17.0

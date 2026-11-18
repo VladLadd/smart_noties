@@ -37,6 +37,30 @@
 			</array>
 		</dict>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>iosamap</string>
+		<string>baidumap</string>
+		<string>waze</string>
+		<string>yandexnavi</string>
+		<string>yandexmaps</string>
+		<string>citymapper</string>
+		<string>mapswithme</string>
+		<string>osmandmaps</string>
+		<string>dgis</string>
+		<string>qqmap</string>
+		<string>here-location</string>
+		<string>tomtomgo</string>
+		<string>tomtomgofleet</string>
+		<string>com.sygic.aura</string>
+		<string>copilot</string>
+		<string>nmap</string>
+		<string>kakaomap</string>
+		<string>tmap</string>
+		<string>szn-mapy</string>
+		<string>mappls</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NFCReaderUsageDescription</key>
@@ -46,6 +70,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Для добавления вашего текущего местоположения в заметку</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Для добавления фото</string>
 	<key>NSMicrophoneUsageDescription</key>

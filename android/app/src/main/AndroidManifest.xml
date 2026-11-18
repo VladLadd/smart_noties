@@ -6,6 +6,9 @@
     <!-- Чтение NFC-метки для показа скрытых заметок -->
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <!-- Геометка добавляется только по действию пользователя. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <application
         android:label="Smart Notes"
         android:name="${applicationName}"

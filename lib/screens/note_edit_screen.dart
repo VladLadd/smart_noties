@@ -12,6 +12,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_strings.dart';
 import '../models/note_model.dart';
+import '../models/note_location.dart';
+import '../widgets/note_location_card.dart';
 import '../models/note_video_model.dart';
 import '../models/video_preview_model.dart';
 import '../providers/notes_provider.dart';
@@ -59,6 +61,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
   bool _openingAttachment = false;
   bool _isRecording = false;
   String? _recordedPath;
+  NoteLocation? _location;
   int _recordSeconds = 0;
   int _recordedDuration = 0; // длительность завершённой записи, сек
   Timer? _timer;
@@ -87,6 +90,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     super.initState();
     final note = widget.initialNote;
     _currentNote = note;
+    _location = note?.location;
 
     final share = widget.incomingShare;
     _attachmentPaths.addAll(note?.attachmentPaths ?? const []);
@@ -190,6 +194,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
       if (!mounted) return;
       setState(() {
         _currentNote = unlocked;
+        _location = unlocked.location;
         _titleController.text = unlocked.title;
         _bodyController.text = unlocked.body;
         _selectedColor = unlocked.color;
@@ -549,6 +554,8 @@ class _NoteEditScreenState extends State<NoteEditScreen>
           title: _titleController.text,
           body: _bodyController.text,
           drawingData: drawingData,
+          locationData: _location?.encode(),
+          clearLocationData: _location == null,
           clearDrawingData: drawingData == null,
           imagePath: imagePath,
           photoPaths: photoPaths,
@@ -575,6 +582,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
             title: _titleController.text,
             body: _bodyController.text,
             drawingData: null,
+            locationData: _location?.encode(),
             imagePath: imagePath,
             photoPaths: photoPaths,
             attachmentPaths: List.of(_attachmentPaths),
@@ -683,6 +691,14 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                       _buildTextFields(),
                       _buildPhotoGallery(),
                       _buildFileAttachments(),
+                      if (_location != null)
+                        Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: NoteLocationCard(
+                                location: _location!,
+                                onEdit: _editLocation,
+                                onRemove: () =>
+                                    setState(() => _location = null))),
                       _buildVoiceSection(),
                       _buildVideoSection(),
                     ],
@@ -1449,6 +1465,11 @@ class _NoteEditScreenState extends State<NoteEditScreen>
     return '$m:$s';
   }
 
+  Future<void> _editLocation() async {
+    final value = await editNoteLocation(context, _location);
+    if (value != null && mounted) setState(() => _location = value);
+  }
+
   Widget _buildBottomActions() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -1463,7 +1484,12 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 onTap: _toggleRecording,
                 background: _isRecording ? Colors.red : Colors.black,
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
+              Tooltip(
+                  message: context.strings.location,
+                  child: _animatedIcon(Icons.location_on_outlined,
+                      delay: 60, onTap: _editLocation)),
+              const SizedBox(width: 12),
               _animatedIcon(
                 Icons.camera_alt,
                 delay: 100,
@@ -1492,7 +1518,7 @@ class _NoteEditScreenState extends State<NoteEditScreen>
                 : Text(context.strings.saveUpper),
           );
 
-          if (constraints.maxWidth < 320) {
+          if (constraints.maxWidth < 400) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

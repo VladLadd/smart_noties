@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'note_video_model.dart';
+import 'note_location.dart';
 
 class Note {
   final String id;
@@ -10,6 +11,8 @@ class Note {
   final String title;
   final String body;
   final String? drawingData;
+  final String? locationData;
+  NoteLocation? get location => NoteLocation.decode(locationData);
   final String? imagePath;
   final List<String> photoPaths;
   final List<String> attachmentPaths;
@@ -38,6 +41,7 @@ class Note {
     this.createdAt,
     this.updatedAt,
     this.drawingData,
+    this.locationData,
     this.imagePath,
     this.photoPaths = const [],
     this.attachmentPaths = const [],
@@ -61,6 +65,7 @@ class Note {
     String? title,
     String? body,
     String? drawingData,
+    String? locationData,
     String? imagePath,
     List<String>? photoPaths,
     List<String>? attachmentPaths,
@@ -76,6 +81,7 @@ class Note {
     String? protectionPassword,
     bool clearImagePath = false,
     bool clearDrawingData = false,
+    bool clearLocationData = false,
     bool clearVoicePath = false,
     bool clearHiddenKeyId = false,
     bool clearProtectionPassword = false,
@@ -89,6 +95,8 @@ class Note {
       title: title ?? this.title,
       body: body ?? this.body,
       drawingData: clearDrawingData ? null : (drawingData ?? this.drawingData),
+      locationData:
+          clearLocationData ? null : (locationData ?? this.locationData),
       imagePath: clearImagePath ? null : (imagePath ?? this.imagePath),
       photoPaths: photoPaths ?? this.photoPaths,
       attachmentPaths: attachmentPaths ?? this.attachmentPaths,
@@ -115,6 +123,7 @@ class Note {
         'title': title,
         'body': body,
         'drawingData': drawingData,
+        'locationData': locationData,
         'imagePath': imagePath,
         'photoPaths': photoPaths,
         'attachmentPaths': attachmentPaths,
@@ -140,6 +149,7 @@ class Note {
       title: json['title'] as String,
       body: json['body'] as String,
       drawingData: _readNullableString(json['drawingData']),
+      locationData: _readNullableString(json['locationData']),
       imagePath: _readNullableString(json['imagePath']),
       photoPaths: _readStringList(json['photoPaths']),
       attachmentPaths: _readStringList(json['attachmentPaths']),
