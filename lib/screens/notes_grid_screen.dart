@@ -90,7 +90,8 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                     label: Text(switch (section) {
                       NoteSection.all => strings.allNotes,
                       NoteSection.incoming => strings.incomingNotes,
-                      NoteSection.created => strings.createdNotes
+                      NoteSection.created => strings.createdNotes,
+                      NoteSection.archived => strings.archive
                     }),
                     selected: _section == section,
                     onSelected: (_) => setState(() => _section = section)),
@@ -163,7 +164,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
         start: _dateRange?.start,
         end: _dateRange?.end);
     if (notes.isEmpty) {
-      if (allNotes.isEmpty &&
+      if (allNotes.every((n) => n.isArchived) &&
           _section == NoteSection.all &&
           _dateRange == null &&
           _searchController.text.isEmpty) {
@@ -172,7 +173,12 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
       return Center(
           child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(context.strings.noMatchingNotes,
+              child: Text(
+                  _section == NoteSection.archived &&
+                          _searchController.text.isEmpty &&
+                          _dateRange == null
+                      ? context.strings.archiveEmpty
+                      : context.strings.noMatchingNotes,
                   textAlign: TextAlign.center)));
     }
 
@@ -357,6 +363,17 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
               },
             ),
             ListTile(
+              leading: Icon(note.isArchived
+                  ? Icons.unarchive_outlined
+                  : Icons.archive_outlined),
+              title: Text(
+                  note.isArchived ? strings.restoreNote : strings.archiveNote),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _setArchived(note);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
               title: Text(
                 strings.delete,
@@ -371,6 +388,23 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _setArchived(Note note) async {
+    final strings = context.readStrings;
+    try {
+      await context.read<NotesProvider>().setArchived(note.id,
+          archived: !note.isArchived,
+          token: context.read<AuthProvider>().token);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              note.isArchived ? strings.noteRestored : strings.noteArchived)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(strings.errorMessage(error))));
+    }
   }
 
   void _showDeleteDialog(Note note) {

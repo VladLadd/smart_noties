@@ -61,6 +61,7 @@ class NotesService {
       'isVoice': requestNote.isVoice,
       'isVideo': requestNote.isVideo,
       'isIncoming': requestNote.isIncoming,
+      'isArchived': requestNote.isArchived,
       'imagePath': requestNote.imagePath ?? '',
       'photoPaths': requestNote.photoPaths,
       'attachmentPaths': requestNote.attachmentPaths,
@@ -113,6 +114,25 @@ class NotesService {
     return decryptNoteFromClient(created, password);
   }
 
+  Future<void> setArchived(
+      {required String id,
+      required bool archived,
+      required String token}) async {
+    final response = await http
+        .patch(
+            Uri.parse('$_baseUrl/api/notes/${Uri.encodeComponent(id)}/archive'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json'
+            },
+            body: jsonEncode({'isArchived': archived}))
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 204) {
+      throw Exception(
+          _errorMessage(response, 'Не удалось изменить состояние архива'));
+    }
+  }
+
   Future<Note> updateNote({
     required Note note,
     required String token,
@@ -128,6 +148,7 @@ class NotesService {
       'isVoice': requestNote.isVoice,
       'isVideo': requestNote.isVideo,
       'isIncoming': requestNote.isIncoming,
+      'isArchived': requestNote.isArchived,
       'imagePath': requestNote.imagePath ?? '',
       'photoPaths': requestNote.photoPaths,
       'attachmentPaths': requestNote.attachmentPaths,

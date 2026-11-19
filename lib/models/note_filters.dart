@@ -1,6 +1,6 @@
 import 'note_model.dart';
 
-enum NoteSection { all, incoming, created }
+enum NoteSection { all, incoming, created, archived }
 
 List<Note> filterNotes(Iterable<Note> notes,
     {NoteSection section = NoteSection.all,
@@ -16,6 +16,7 @@ List<Note> filterNotes(Iterable<Note> notes,
       start == null ? null : DateTime(start.year, start.month, start.day);
   final last = end == null ? null : DateTime(end.year, end.month, end.day + 1);
   final result = notes.where((note) {
+    if (note.isArchived != (section == NoteSection.archived)) return false;
     if (section == NoteSection.incoming && !note.isIncoming) return false;
     if (section == NoteSection.created && note.isIncoming) return false;
     if (first != null || last != null) {

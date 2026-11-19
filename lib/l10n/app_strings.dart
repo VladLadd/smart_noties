@@ -136,6 +136,15 @@ class AppStrings {
       ? 'Не удалось определить местоположение. Попробуйте ещё раз или введите координаты вручную'
       : 'Could not get your location. Retry or enter coordinates manually';
   String get locationSettings => _ru ? 'Открыть настройки' : 'Open settings';
+  String get archive => _ru ? 'Архив' : 'Archive';
+  String get archiveNote => _ru ? 'В архив' : 'Archive note';
+  String get restoreNote => _ru ? 'Вернуть из архива' : 'Restore from archive';
+  String get noteArchived =>
+      _ru ? 'Заметка перенесена в архив' : 'Note archived';
+  String get noteRestored =>
+      _ru ? 'Заметка возвращена из архива' : 'Note restored';
+  String get archiveEmpty =>
+      _ru ? 'В архиве пока нет заметок' : 'No archived notes yet';
   String get discard => _ru ? 'Удалить черновик' : 'Discard draft';
   String get sharedNoteSaved => _ru
       ? 'Заметка сохранена на устройстве во «Входящих»'

@@ -6,6 +6,7 @@ import 'note_location.dart';
 class Note {
   final String id;
   final bool isIncoming;
+  final bool isArchived;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String title;
@@ -38,6 +39,7 @@ class Note {
     required this.title,
     required this.body,
     this.isIncoming = false,
+    this.isArchived = false,
     this.createdAt,
     this.updatedAt,
     this.drawingData,
@@ -60,6 +62,7 @@ class Note {
   Note copyWith({
     String? id,
     bool? isIncoming,
+    bool? isArchived,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? title,
@@ -90,6 +93,7 @@ class Note {
     return Note(
       id: id ?? this.id,
       isIncoming: isIncoming ?? this.isIncoming,
+      isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       title: title ?? this.title,
@@ -118,6 +122,7 @@ class Note {
   Map<String, dynamic> toJson() => {
         'id': id,
         'isIncoming': isIncoming,
+        'isArchived': isArchived,
         'createdAt': createdAt?.toUtc().toIso8601String(),
         'updatedAt': updatedAt?.toUtc().toIso8601String(),
         'title': title,
@@ -144,6 +149,7 @@ class Note {
     return Note(
       id: json['id'] as String,
       isIncoming: _readBool(json['isIncoming']),
+      isArchived: _readBool(json['isArchived']),
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
       updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
       title: json['title'] as String,

@@ -17,7 +17,7 @@ import 'incoming_share_provider.dart';
 class NotesProvider extends ChangeNotifier {
   static const hiddenSessionDuration = Duration(minutes: 10);
 
-  final _service = NotesService();
+  final NotesService _service;
   final GuestNotesStore _guestStore;
   final GuestNotesStore _pendingStore;
   late final Future<void> _pendingLoaded;
@@ -134,8 +134,12 @@ class NotesProvider extends ChangeNotifier {
             _loadedHiddenAccessToken != _activeHiddenAccessToken);
   }
 
-  NotesProvider({GuestNotesStore? guestStore, GuestNotesStore? pendingStore})
-      : _guestStore = guestStore ?? GuestNotesStore(),
+  NotesProvider(
+      {GuestNotesStore? guestStore,
+      GuestNotesStore? pendingStore,
+      NotesService? service})
+      : _service = service ?? NotesService(),
+        _guestStore = guestStore ?? GuestNotesStore(),
         _pendingStore = pendingStore ??
             GuestNotesStore(
                 directoryName: 'pending_media', idPrefix: 'local_') {
@@ -453,15 +457,16 @@ class NotesProvider extends ChangeNotifier {
     await _savePendingNotes();
   }
 
-  Future<void> _savePendingNotes() async {
+  Future<void> _savePendingNotes({List<Note>? notes}) async {
     final notesForStorage = <Note>[];
-    for (final note in _notes) {
+    for (final note in notes ?? _notes) {
       if (note.isPending &&
           note.hasProtection &&
           note.protectionPassword != null &&
           note.protectionPassword!.isNotEmpty) {
         notesForStorage.add(
-          await encryptNoteForClient(note, note.protectionPassword!),
+          (await encryptNoteForClient(note, note.protectionPassword!))
+              .copyWith(clearProtectionPassword: true),
         );
       } else {
         notesForStorage.add(note);
@@ -531,6 +536,50 @@ class NotesProvider extends ChangeNotifier {
       notifyListeners();
     }
     await _savePendingNotes();
+  }
+
+  final Set<String> _archivingIds = {};
+
+  Future<void> setArchived(String id,
+      {required bool archived, String? token}) async {
+    if (!_archivingIds.add(id)) return;
+    try {
+      await _pendingLoaded;
+      final guest = _guestMode && id.startsWith('guest_');
+      final source = guest ? _guestNotes : _notes;
+      final index = source.indexWhere((n) => n.id == id);
+      if (index < 0) throw StateError('Заметка не найдена');
+      final note = source[index];
+      if (note.isArchived == archived) return;
+      if (!guest && !note.isPending) {
+        if (token == null || token.isEmpty) {
+          throw Exception('Необходима авторизация');
+        }
+        await _service.setArchived(id: id, archived: archived, token: token);
+      }
+      await _serializeGuestWrite(() async {
+        final currentIndex = source.indexWhere((n) => n.id == id);
+        if (currentIndex < 0) return;
+        final next = List<Note>.of(source);
+        next[currentIndex] = next[currentIndex]
+            .copyWith(isArchived: archived, updatedAt: DateTime.now());
+        // Меняем только метаданные. Пароль и расшифровка содержимого не нужны.
+        if (guest) {
+          if (guestLoadError != null || _guestLoading) {
+            throw StateError('Локальное хранилище недоступно');
+          }
+          await _guestStore.write(next);
+        } else if (note.isPending) {
+          await _savePendingNotes(notes: next);
+        }
+        source
+          ..clear()
+          ..addAll(next);
+        notifyListeners();
+      });
+    } finally {
+      _archivingIds.remove(id);
+    }
   }
 
   Future<void> updateNote(
