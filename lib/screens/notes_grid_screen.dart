@@ -110,6 +110,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                       NoteSection.all => strings.allNotes,
                       NoteSection.incoming => strings.incomingNotes,
                       NoteSection.created => strings.createdNotes,
+                      NoteSection.wishlists => strings.wishlists,
                       NoteSection.archived => strings.archive
                     }),
                     selected: _section == section,

@@ -6,6 +6,7 @@ import 'models/admin_user_model.dart';
 import 'models/nfc_key_model.dart';
 import 'models/nfc_token_request_model.dart';
 import 'services/auth_service.dart';
+import 'screens/feedback_screen.dart';
 import 'services/nfc_admin_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/web_max_width.dart';
@@ -281,6 +282,10 @@ class _AdminShellState extends State<_AdminShell> {
           child: _AdminUsersPanel(token: widget.token),
         ),
       );
+      sections.add(_ShellSection(
+          icon: Icons.feedback_outlined,
+          label: 'Обратная связь',
+          child: FeedbackInboxScreen(admin: true, token: widget.token)));
     }
     final selected = _section.clamp(0, sections.length - 1).toInt();
 

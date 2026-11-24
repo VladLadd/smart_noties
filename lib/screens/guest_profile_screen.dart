@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/notes_provider.dart';
 import 'faq_screen.dart';
+import 'feedback_screen.dart';
 
 class GuestProfileScreen extends StatelessWidget {
   const GuestProfileScreen({super.key});
@@ -47,6 +48,8 @@ class GuestProfileScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(builder: (_) => const FaqScreen()))),
+        const SizedBox(height: 12),
+        const FeedbackEntryTile(),
         const SizedBox(height: 24),
         FilledButton(
             onPressed: () async {

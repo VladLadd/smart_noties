@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_noties/models/note_model.dart';
 import 'package:smart_noties/models/note_filters.dart';
+import 'package:smart_noties/models/wishlist_model.dart';
 
 void main() {
   final notes = [
@@ -48,5 +49,40 @@ void main() {
     expect(restored.isIncoming, isTrue);
     expect(restored.createdAt!.isAtSameMomentAs(notes[1].createdAt!), isTrue);
     expect(restored.copyWith(body: 'edited').isIncoming, isTrue);
+  });
+  test('Wishlist section combines type, archive, gift search and date filters',
+      () {
+    final wishlist = Note(
+        id: 'wishlist',
+        noteType: NoteType.wishlist,
+        title: 'Подарки',
+        body: '',
+        createdAt: DateTime(2026, 11, 12),
+        wishlistData: const WishlistData(items: [
+          WishlistItem(id: 'gift', title: 'Браслет', description: 'Нефритовый')
+        ]).encode());
+    final mixed = [
+      ...notes,
+      wishlist,
+      wishlist.copyWith(id: 'incoming-wishlist', isIncoming: true),
+      wishlist.copyWith(id: 'archived-wishlist', isArchived: true),
+      wishlist.copyWith(id: 'protected-wishlist', isProtected: true),
+    ];
+    expect(filterNotes(mixed, section: NoteSection.wishlists).map((n) => n.id),
+        ['wishlist', 'incoming-wishlist', 'protected-wishlist']);
+    expect(
+        filterNotes(mixed,
+                section: NoteSection.wishlists,
+                query: 'НЕФРИТОВЫЙ браслет',
+                start: DateTime(2026, 11, 12),
+                end: DateTime(2026, 11, 12))
+            .map((n) => n.id),
+        ['wishlist', 'incoming-wishlist']);
+    expect(
+        filterNotes(mixed,
+            section: NoteSection.wishlists, start: DateTime(2026, 11, 13)),
+        isEmpty);
+    expect(filterNotes(mixed, section: NoteSection.archived).map((n) => n.id),
+        ['archived-wishlist']);
   });
 }

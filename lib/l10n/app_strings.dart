@@ -13,6 +13,70 @@ enum AppLanguage {
 }
 
 class AppStrings {
+  String get feedbackTitle => _ru ? 'Обратная связь' : 'Feedback';
+  String get feedbackHint => _ru
+      ? 'Отзывы, ошибки и сообщения о сбоях'
+      : 'Comments, bugs and crash reports';
+  String get feedbackNew =>
+      _ru ? 'Написать разработчику' : 'Contact the developer';
+  String get feedbackEmpty => _ru
+      ? 'Здесь появятся ваши обращения и ответы разработчика.'
+      : 'Your reports and developer replies will appear here.';
+  String get feedbackAdminEmpty => _ru
+      ? 'Обращений по выбранным условиям нет.'
+      : 'No reports match the selected filters.';
+  String get feedbackSubject => _ru ? 'Тема обращения' : 'Subject';
+  String get feedbackBody => _ru ? 'Сообщение' : 'Message';
+  String get feedbackBodyHint => _ru
+      ? 'Что произошло? Что вы ожидали? Как повторить ошибку?'
+      : 'What happened? What did you expect? How can we reproduce it?';
+  String get feedbackContact =>
+      _ru ? 'Email для связи (необязательно)' : 'Contact email (optional)';
+  String get feedbackContactHint => _ru
+      ? 'Ответ появится здесь. Email будет виден разработчику; письма автоматически не отправляются.'
+      : 'Replies will appear here. Your email will be visible to the developer; no emails are sent automatically.';
+  String get feedbackGuestHint => _ru
+      ? 'Гостевые обращения доступны на этом устройстве. После удаления данных приложения доступ к переписке будет потерян.'
+      : 'Guest reports are accessible on this device. Clearing app data removes access to the conversation.';
+  String get feedbackSubmit => _ru ? 'Отправить обращение' : 'Send report';
+  String get feedbackReply => _ru ? 'Ответить' : 'Reply';
+  String get feedbackReplyHint => _ru
+      ? 'Дополните обращение или ответьте на сообщение'
+      : 'Add details or reply to a message';
+  String get feedbackDeveloper => _ru ? 'Разработчик' : 'Developer';
+  String get feedbackUser => _ru ? 'Пользователь' : 'User';
+  String get feedbackYou => _ru ? 'Вы' : 'You';
+  String get feedbackGuest => _ru ? 'Гость' : 'Guest';
+  String get feedbackRequired =>
+      _ru ? 'Заполните это поле' : 'This field is required';
+  String get feedbackInvalidEmail =>
+      _ru ? 'Проверьте email' : 'Check the email address';
+  String get feedbackDiscard => _ru
+      ? 'Закрыть форму и потерять неотправленный текст?'
+      : 'Close and discard the unsent text?';
+  String get feedbackSearch => _ru
+      ? 'Поиск по теме, сообщению или пользователю'
+      : 'Search subject, message or user';
+  String get feedbackAllStatuses => _ru ? 'Все статусы' : 'All statuses';
+  String get feedbackAllCategories => _ru ? 'Все типы' : 'All types';
+  String get feedbackPrevious => _ru ? 'Назад' : 'Previous';
+  String get feedbackNext => _ru ? 'Далее' : 'Next';
+  String get feedbackRefresh => _ru ? 'Обновить' : 'Refresh';
+  String get feedbackUnread => _ru ? 'Непрочитанные' : 'Unread';
+  String get feedbackPlatform => _ru ? 'Платформа' : 'Platform';
+  String feedbackCategory(String value) => switch (value) {
+        'feedback' => _ru ? 'Отзыв' : 'Comment',
+        'bug' => _ru ? 'Ошибка' : 'Bug',
+        'crash' => _ru ? 'Сбой' : 'Crash',
+        _ => value,
+      };
+  String feedbackStatus(String value) => switch (value) {
+        'new' => _ru ? 'Новое' : 'New',
+        'in_progress' => _ru ? 'В работе' : 'In progress',
+        'resolved' => _ru ? 'Решено' : 'Resolved',
+        _ => value,
+      };
+
   String get wishlistHub =>
       _ru ? 'Общие вишлисты и импорт' : 'Shared wishlists & import';
   String get wishlistTeam =>
@@ -102,6 +166,7 @@ class AppStrings {
   String get allNotes => _ru ? 'Все' : 'All';
   String get incomingNotes => _ru ? 'Входящие' : 'Incoming';
   String get createdNotes => _ru ? 'Созданные' : 'Created';
+  String get wishlists => _ru ? 'Вишлисты' : 'Wishlists';
   String get noMatchingNotes => _ru
       ? 'Заметки не найдены. Измените раздел, поиск или даты. Поиск по тексту защищённых паролем заметок недоступен.'
       : 'No matching notes. Change the section, search or dates. Password-protected note contents are not searched.';
@@ -586,6 +651,24 @@ class AppStrings {
           ? 'Облачная копия уже существует и отличается. Локальные изменения сохранены; откройте облачную копию для редактирования.'
           : 'A different cloud copy already exists. Local changes are safe; open the cloud copy to edit it.';
     }
+    final feedbackErrors = <String, String>{
+      'feedback_invalid': _ru
+          ? 'Проверьте тему, сообщение и контактный email.'
+          : 'Check the subject, message and contact email.',
+      'feedback_not_found': _ru
+          ? 'Обращение не найдено или доступ к нему закрыт.'
+          : 'Report not found or access denied.',
+      'feedback_rate_limited': _ru
+          ? 'Достигнут лимит отправки сообщений. Повторите попытку позже.'
+          : 'The sending limit has been reached. Try again later.',
+      'feedback_thread_full': _ru
+          ? 'В обращении достигнут лимит сообщений. Создайте новое обращение.'
+          : 'This conversation has reached its message limit. Create a new report.',
+      'feedback_unavailable': _ru
+          ? 'Обратная связь временно недоступна. Повторите попытку позже.'
+          : 'Feedback is temporarily unavailable. Try again later.',
+    };
+    if (feedbackErrors.containsKey(message)) return feedbackErrors[message]!;
     final wishlistErrors = <String, String>{
       'wishlist_conflict': _ru
           ? 'Список уже изменён другим участником. Ваш черновик сохранён в редакторе; вернитесь и обновите список перед повторным редактированием.'

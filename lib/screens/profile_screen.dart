@@ -13,6 +13,7 @@ import '../services/nfc_admin_service.dart';
 import '../services/api_config.dart';
 import '../services/profile_service.dart';
 import 'faq_screen.dart';
+import 'feedback_screen.dart';
 import 'guest_profile_screen.dart';
 
 enum _AvatarAction { choose, remove }
@@ -681,6 +682,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              const FeedbackEntryTile(),
               const SizedBox(height: 20),
               _NfcTokenSection(
                 requests: _tokenRequests,
