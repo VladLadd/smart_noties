@@ -577,7 +577,8 @@ class AppStrings {
   String errorMessage(Object error) {
     var message = error.toString().trim();
     message = message.replaceFirst(
-      RegExp(r'^(?:Exception|FormatException|Bad state|ProfileException|AuthException):\s*'),
+      RegExp(
+          r'^(?:Exception|FormatException|Bad state|ProfileException|AuthException):\s*'),
       '',
     );
     if (message == 'wishlist import conflict') {
@@ -595,6 +596,24 @@ class AppStrings {
       'wishlist_invalid':
           _ru ? 'Проверьте поля вишлиста.' : 'Check the wishlist fields.',
       'wishlist_invalid_url': wishlistInvalidURL,
+      'wishlist_sharing_not_configured': _ru
+          ? 'Публикация ссылок ещё не настроена на сервере. Обратитесь к администратору.'
+          : 'Link sharing is not configured on the server yet. Contact the administrator.',
+      'wishlist_store_blocked': _ru
+          ? 'Магазин ограничивает автоматический доступ к товару. Заполните поля вручную.'
+          : 'The store restricts automated access. Fill in the fields manually.',
+      'wishlist_product_redirects': _ru
+          ? 'Магазин постоянно перенаправляет запрос. Откройте товар в браузере и заполните поля вручную.'
+          : 'The store keeps redirecting the request. Open the product in a browser and fill in the fields manually.',
+      'wishlist_product_not_found': _ru
+          ? 'Страница товара не найдена. Проверьте ссылку.'
+          : 'Product page not found. Check the link.',
+      'wishlist_product_timeout': _ru
+          ? 'Магазин не ответил вовремя. Повторите попытку позже или заполните поля вручную.'
+          : 'The store took too long to respond. Try again later or fill in the fields manually.',
+      'wishlist_product_too_large': _ru
+          ? 'Страница магазина слишком большая для автоматического заполнения. Заполните поля вручную.'
+          : 'The store page is too large to process. Fill in the fields manually.',
       'wishlist_parse_failed': _ru
           ? 'Не удалось получить данные товара. Заполните поля вручную.'
           : 'Product details unavailable. Fill in the fields manually.',

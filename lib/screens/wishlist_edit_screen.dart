@@ -17,8 +17,13 @@ class WishlistEditScreen extends StatefulWidget {
   final Note? initialNote;
   final Future<Note> Function(Note)? onSave;
   final bool collaborative;
+  final WishlistService? productService;
   const WishlistEditScreen(
-      {super.key, this.initialNote, this.onSave, this.collaborative = false});
+      {super.key,
+      this.initialNote,
+      this.onSave,
+      this.collaborative = false,
+      this.productService});
   @override
   State<WishlistEditScreen> createState() => _WishlistEditScreenState();
 }
@@ -118,7 +123,9 @@ class _WishlistEditScreenState extends State<WishlistEditScreen> {
     final value = await showDialog<WishlistItem>(
         context: context,
         builder: (_) => _GiftDialog(
-            item: index == null ? null : _items[index], pickImage: _pickImage));
+            item: index == null ? null : _items[index],
+            pickImage: _pickImage,
+            service: widget.productService ?? WishlistService()));
     if (value != null && mounted) {
       setState(() {
         if (index == null) {
@@ -422,7 +429,9 @@ class _WishlistEditScreenState extends State<WishlistEditScreen> {
 class _GiftDialog extends StatefulWidget {
   final WishlistItem? item;
   final Future<String?> Function() pickImage;
-  const _GiftDialog({this.item, required this.pickImage});
+  final WishlistService service;
+  const _GiftDialog(
+      {this.item, required this.pickImage, required this.service});
   @override
   State<_GiftDialog> createState() => _GiftDialogState();
 }
@@ -440,6 +449,7 @@ class _GiftDialogState extends State<_GiftDialog> {
   late String _currency = widget.item?.currency ?? 'RUB';
   late String _image = widget.item?.imagePath ?? '';
   bool _picking = false;
+  String? _parseError;
   int? _minor() {
     final v = _price.text.trim().replaceAll(',', '.');
     if (v.isEmpty) return null;
@@ -508,11 +518,12 @@ class _GiftDialogState extends State<_GiftDialog> {
                             onPressed: _picking
                                 ? null
                                 : () async {
-                                    final messenger =
-                                        ScaffoldMessenger.of(context);
-                                    setState(() => _picking = true);
+                                    setState(() {
+                                      _picking = true;
+                                      _parseError = null;
+                                    });
                                     try {
-                                      final data = await WishlistService().json(
+                                      final data = await widget.service.json(
                                           '/api/wishlists/product',
                                           context.read<AuthProvider>().token!,
                                           method: 'POST',
@@ -541,9 +552,8 @@ class _GiftDialogState extends State<_GiftDialog> {
                                       });
                                     } catch (error) {
                                       if (mounted) {
-                                        messenger.showSnackBar(SnackBar(
-                                            content:
-                                                Text(s.errorMessage(error))));
+                                        setState(() => _parseError =
+                                            s.errorMessage(error));
                                       }
                                     } finally {
                                       if (mounted) {
@@ -551,8 +561,17 @@ class _GiftDialogState extends State<_GiftDialog> {
                                       }
                                     }
                                   }),
+                      if (_parseError != null)
+                        Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(_parseError!,
+                                key: const ValueKey('gift-autofill-error'),
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.error))),
                       Text(s.wishlistAutofillHint,
                           style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 20),
                       TextFormField(
                           key: const ValueKey('gift-price'),
                           controller: _price,

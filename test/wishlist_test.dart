@@ -67,6 +67,14 @@ class SharedWishlistService extends WishlistService {
   }
 }
 
+class BlockedProductService extends WishlistService {
+  @override
+  Future<dynamic> json(String path, String token,
+      {String method = 'GET', Map<String, dynamic>? body}) async {
+    throw Exception('wishlist_store_blocked');
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   WishlistItem gift({String image = ''}) => WishlistItem(
@@ -283,5 +291,41 @@ void main() {
         findsOneWidget);
     expect(find.byType(PopupMenuButton<String>), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+      'Store failure appears inside gift dialog and preserves entered fields',
+      (tester) async {
+    final auth = AuthProvider();
+    await tester.pump();
+    auth.token = 'test-token';
+    auth.userId = 1;
+    await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: auth),
+          ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ],
+        child: MaterialApp(
+            home:
+                WishlistEditScreen(productService: BlockedProductService()))));
+    await tester.tap(find.text('Добавить подарок'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('gift-title')), 'Нефритовый браслет');
+    await tester.enterText(find.byKey(const ValueKey('gift-price')), '1800');
+    await tester.enterText(find.byKey(const ValueKey('gift-url')),
+        'https://www.ozon.ru/product/test');
+    await tester.ensureVisible(find.text('Заполнить по ссылке'));
+    await tester.tap(find.text('Заполнить по ссылке'));
+    await tester.pumpAndSettle();
+    final error = find.byKey(const ValueKey('gift-autofill-error'));
+    expect(error, findsOneWidget);
+    expect(find.ancestor(of: error, matching: find.byType(AlertDialog)),
+        findsOneWidget);
+    expect(find.text('Нефритовый браслет'), findsOneWidget);
+    expect(find.text('1800'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    auth.dispose();
   });
 }
