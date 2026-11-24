@@ -53,6 +53,18 @@ class NotesService {
     final requestNote = await encryptNoteForClient(note, password);
     final requestBody = {
       'title': requestNote.title,
+      'noteType': requestNote.noteType.name,
+      'wishlistData': requestNote.wishlistData ?? '',
+      'wishlistImages': note.isWishlist
+          ? [
+              if (note.imagePath != null) note.imagePath!,
+              ...note.wishlist.imagePaths
+            ].where((p) => p.startsWith('/api/image/')).toSet().toList()
+          : <String>[],
+      'clientImportKey':
+          note.id.startsWith('local_') || note.id.startsWith('guest_')
+              ? note.id
+              : '',
       'body': requestNote.body,
       'drawingData': requestNote.drawingData ?? '',
       'locationData': requestNote.locationData ?? '',
@@ -79,6 +91,8 @@ class NotesService {
     final logBody = Map<String, dynamic>.from(requestBody);
     if (note.hasProtection) {
       logBody['title'] = '***';
+      logBody['wishlistData'] = '***';
+      logBody['wishlistImages'] = '***';
       logBody['body'] = '***';
       logBody['drawingData'] = '***';
       logBody['locationData'] = '***';
@@ -136,11 +150,25 @@ class NotesService {
   Future<Note> updateNote({
     required Note note,
     required String token,
+    int? wishlistRevision,
   }) async {
     final password = note.protectionPassword ?? '';
     final requestNote = await encryptNoteForClient(note, password);
     final requestBody = {
+      if (wishlistRevision != null) 'wishlistRevision': wishlistRevision,
       'title': requestNote.title,
+      'noteType': requestNote.noteType.name,
+      'wishlistData': requestNote.wishlistData ?? '',
+      'wishlistImages': note.isWishlist
+          ? [
+              if (note.imagePath != null) note.imagePath!,
+              ...note.wishlist.imagePaths
+            ].where((p) => p.startsWith('/api/image/')).toSet().toList()
+          : <String>[],
+      'clientImportKey':
+          note.id.startsWith('local_') || note.id.startsWith('guest_')
+              ? note.id
+              : '',
       'body': requestNote.body,
       'drawingData': requestNote.drawingData ?? '',
       'locationData': requestNote.locationData ?? '',
@@ -166,6 +194,8 @@ class NotesService {
     final logBody = Map<String, dynamic>.from(requestBody);
     if (note.hasProtection) {
       logBody['title'] = '***';
+      logBody['wishlistData'] = '***';
+      logBody['wishlistImages'] = '***';
       logBody['body'] = '***';
       logBody['drawingData'] = '***';
       logBody['locationData'] = '***';

@@ -45,7 +45,10 @@ class ArchiveService extends NotesService {
   }
 
   @override
-  Future<Note> updateNote({required Note note, required String token}) async =>
+  Future<Note> updateNote(
+          {required Note note,
+          required String token,
+          int? wishlistRevision}) async =>
       throw StateError('Архивирование не должно перезаписывать содержимое');
 }
 

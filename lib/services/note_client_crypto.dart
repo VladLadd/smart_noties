@@ -18,6 +18,9 @@ Future<Note> encryptNoteForClient(Note note, String password) async {
   if (!note.hasProtection || password.isEmpty) return note;
 
   final title = await _encryptString(note.title, password);
+  final wishlistData = note.wishlistData == null
+      ? null
+      : await _encryptString(note.wishlistData!, password);
   final body = await _encryptString(note.body, password);
   final drawingData = note.drawingData == null
       ? null
@@ -42,6 +45,7 @@ Future<Note> encryptNoteForClient(Note note, String password) async {
   }
   return note.copyWith(
     title: title,
+    wishlistData: wishlistData,
     body: body,
     drawingData: drawingData,
     locationData: locationData,
@@ -60,6 +64,9 @@ Future<Note> decryptNoteFromClient(Note note, String password) async {
   if (!note.hasProtection || password.isEmpty) return note;
 
   final title = await _decryptString(note.title, password);
+  final wishlistData = note.wishlistData == null
+      ? null
+      : await _decryptString(note.wishlistData!, password);
   final body = await _decryptString(note.body, password);
   final drawingData = note.drawingData == null
       ? null
@@ -84,6 +91,7 @@ Future<Note> decryptNoteFromClient(Note note, String password) async {
   }
   return note.copyWith(
     title: title,
+    wishlistData: wishlistData,
     body: body,
     drawingData: drawingData,
     locationData: locationData,

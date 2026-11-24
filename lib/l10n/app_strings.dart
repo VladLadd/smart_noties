@@ -13,6 +13,38 @@ enum AppLanguage {
 }
 
 class AppStrings {
+  String get wishlistHub =>
+      _ru ? 'Общие вишлисты и импорт' : 'Shared wishlists & import';
+  String get wishlistTeam =>
+      _ru ? 'Редакторы и активность' : 'Editors & activity';
+  String get wishlistImport => _ru ? 'Импортировать копию' : 'Import a copy';
+  String get wishlistImportHint =>
+      _ru ? 'Ссылка на вишлист Smart Notes' : 'Smart Notes wishlist link';
+  String get wishlistImportConsent => _ru
+      ? 'Будет создана независимая приватная копия списка и его фото в вашем аккаунте. Брони и комментарии не копируются.'
+      : 'An independent private copy of the list and its photos will be saved to your account. Reservations and comments are not copied.';
+  String get wishlistInvite => _ru ? 'Добавить редактора' : 'Add editor';
+  String get wishlistEditorsHint => _ru
+      ? 'Укажите email зарегистрированного пользователя. Редактор сможет менять подарки и текст, но не доступ и настройки защиты.'
+      : 'Enter a registered user’s email. Editors can change gifts and text, but cannot manage sharing or privacy.';
+  String get wishlistRevokeEditor => _ru ? 'Отозвать доступ' : 'Revoke access';
+  String get wishlistActivity =>
+      _ru ? 'Брони и комментарии' : 'Reservations & comments';
+  String get wishlistReset => _ru ? 'Сбросить отметку' : 'Reset status';
+  String get wishlistResetConfirm => _ru
+      ? 'Отменить эту бронь или отметку покупки?'
+      : 'Clear this reservation or purchase status?';
+  String get wishlistReserved => _ru ? 'Забронировано' : 'Reserved';
+  String get wishlistPurchased => _ru ? 'Куплено' : 'Purchased';
+  String get wishlistAvailable => _ru ? 'Свободно' : 'Available';
+  String get wishlistAutofill => _ru ? 'Заполнить по ссылке' : 'Fill from link';
+  String get wishlistAutofillHint => _ru
+      ? 'Магазин может не отдавать данные автоматически. Проверьте название и цену перед сохранением.'
+      : 'Some stores do not provide product details. Check the name and price before saving.';
+  String get wishlistSignInRequired => _ru
+      ? 'Для этой функции войдите в аккаунт.'
+      : 'Sign in to use this feature.';
+
   String get attachmentNeedsConnection => _ru
       ? 'Для загрузки вложений необходимо подключение к серверу'
       : 'A server connection is required to upload attachments';
@@ -145,6 +177,82 @@ class AppStrings {
       _ru ? 'Заметка возвращена из архива' : 'Note restored';
   String get archiveEmpty =>
       _ru ? 'В архиве пока нет заметок' : 'No archived notes yet';
+  String get wishlist => _ru ? 'Вишлист подарков' : 'Gift wishlist';
+  String get ordinaryNote => _ru ? 'Обычная заметка' : 'Note';
+  String get addGift => _ru ? 'Добавить подарок' : 'Add gift';
+  String get giftName => _ru ? 'Название подарка' : 'Gift name';
+  String get giftDescription => _ru ? 'Описание' : 'Description';
+  String get giftURL => _ru ? 'Ссылка на магазин' : 'Store URL';
+  String get giftPrice => _ru ? 'Цена (необязательно)' : 'Price (optional)';
+  String get giftCurrency => _ru ? 'Валюта' : 'Currency';
+  String get wishlistTitle => _ru ? 'Название вишлиста' : 'Wishlist title';
+  String get wishlistDescription =>
+      _ru ? 'Описание списка' : 'Wishlist description';
+  String get wishlistUnsupported => _ru
+      ? 'Не удалось открыть этот формат вишлиста. Обновите приложение.'
+      : 'This wishlist format is not supported. Update the app.';
+  String get wishlistEmpty =>
+      _ru ? 'Добавьте первый подарок' : 'Add your first gift';
+  String get wishlistLimit => _ru
+      ? 'В списке может быть не больше 100 подарков'
+      : 'A wishlist can contain up to 100 gifts';
+  String get wishlistInvalidURL => _ru
+      ? 'Введите ссылку http:// или https://'
+      : 'Enter an http:// or https:// URL';
+  String get wishlistInvalidPrice => _ru
+      ? 'Введите цену с двумя знаками после запятой'
+      : 'Enter a price with up to two decimal places';
+  String get shareWishlist => _ru ? 'Поделиться ссылкой' : 'Share link';
+  String get publishWishlist => _ru ? 'Опубликовать' : 'Publish';
+  String get wishlistConsent => _ru
+      ? 'Любой, у кого есть ссылка, сможет посмотреть этот вишлист. Сохранённые изменения списка будут видны получателям.'
+      : 'Anyone with the link can view this wishlist. Saved changes will be visible to recipients.';
+  String get wishlistSharingActive =>
+      _ru ? 'Доступен по ссылке' : 'Available via link';
+  String get wishlistSharingOff =>
+      _ru ? 'Публичный доступ выключен' : 'Link sharing is off';
+  String get disableWishlistLink => _ru ? 'Отключить ссылку' : 'Disable link';
+  String get rotateWishlistLink =>
+      _ru ? 'Создать новую ссылку' : 'Create a new link';
+  String get rotateWishlistConfirm => _ru
+      ? 'Прежняя ссылка перестанет работать. Продолжить?'
+      : 'The previous link will stop working. Continue?';
+  String get linkCopied => _ru ? 'Ссылка скопирована' : 'Link copied';
+  String get wishlistNeedsAccount => _ru
+      ? 'Для публичной ссылки войдите в аккаунт. Затем загрузите только этот вишлист — остальные локальные заметки останутся на устройстве.'
+      : 'Sign in to share a public link. Then upload only this wishlist; other local notes stay on this device.';
+  String get wishlistUpload =>
+      _ru ? 'Загрузить этот вишлист' : 'Upload this wishlist';
+  String get wishlistUploadConsent => _ru
+      ? 'Этот вишлист и его фотографии будут сохранены в вашем аккаунте. Продолжить?'
+      : 'This wishlist and its photos will be saved to your account. Continue?';
+  String get wishlistPrivateOnly => _ru
+      ? 'Сначала уберите пароль, NFC-скрытие или архив, чтобы опубликовать вишлист.'
+      : 'Remove password protection, NFC hiding or archive status before publishing.';
+  String get wishlistDiscard => _ru
+      ? 'Изменения не сохранены. Закрыть редактор?'
+      : 'Your changes are not saved. Close the editor?';
+  String get wishlistCover => _ru ? 'Обложка списка' : 'Wishlist cover';
+  String get giftPhoto => _ru ? 'Фото подарка' : 'Gift photo';
+  String get viewStore => _ru ? 'Открыть в магазине' : 'View in store';
+  String get protectWishlist => _ru ? 'Защита паролем' : 'Password protection';
+  String get wishlistPasswordHint => _ru
+      ? 'Не менее 6 символов. Пустое поле — снять защиту.'
+      : 'At least 6 characters. Leave empty to remove protection.';
+  String get wishlistRevocationWarning => _ru
+      ? 'Публичная ссылка будет отключена. Продолжить?'
+      : 'The public link will be disabled. Continue?';
+  String get wishlistSelectNfc => _ru
+      ? 'Сначала откройте скрытые заметки своей NFC-картой'
+      : 'First unlock hidden notes with your NFC card';
+  String get wishlistHidden => _ru ? 'Скрыть с помощью NFC' : 'Hide with NFC';
+  String get wishlistSavingLocal => _ru
+      ? 'Не удалось отправить вишлист. Локальные изменения сохранены.'
+      : 'Could not upload the wishlist. Local changes are saved.';
+  String get wishlistItemsLabel => _ru ? 'Подарков' : 'Gifts';
+  String get wishlistUnknownError => _ru
+      ? 'Не удалось выполнить действие с вишлистом'
+      : 'Could not complete the wishlist action';
   String get discard => _ru ? 'Удалить черновик' : 'Discard draft';
   String get sharedNoteSaved => _ru
       ? 'Заметка сохранена на устройстве во «Входящих»'
@@ -469,9 +577,35 @@ class AppStrings {
   String errorMessage(Object error) {
     var message = error.toString().trim();
     message = message.replaceFirst(
-      RegExp(r'^(?:Exception|Bad state|ProfileException|AuthException):\s*'),
+      RegExp(r'^(?:Exception|FormatException|Bad state|ProfileException|AuthException):\s*'),
       '',
     );
+    if (message == 'wishlist import conflict') {
+      return _ru
+          ? 'Облачная копия уже существует и отличается. Локальные изменения сохранены; откройте облачную копию для редактирования.'
+          : 'A different cloud copy already exists. Local changes are safe; open the cloud copy to edit it.';
+    }
+    final wishlistErrors = <String, String>{
+      'wishlist_conflict': _ru
+          ? 'Список уже изменён другим участником. Ваш черновик сохранён в редакторе; вернитесь и обновите список перед повторным редактированием.'
+          : 'Another editor changed the list. Your draft is still in the editor; go back and reload before editing again.',
+      'wishlist_not_found': _ru
+          ? 'Список или пользователь не найден либо доступ отозван.'
+          : 'List or user not found, or access was revoked.',
+      'wishlist_invalid':
+          _ru ? 'Проверьте поля вишлиста.' : 'Check the wishlist fields.',
+      'wishlist_invalid_url': wishlistInvalidURL,
+      'wishlist_parse_failed': _ru
+          ? 'Не удалось получить данные товара. Заполните поля вручную.'
+          : 'Product details unavailable. Fill in the fields manually.',
+      'wishlist_unavailable': _ru
+          ? 'Вишлист временно недоступен. Повторите попытку.'
+          : 'Wishlist temporarily unavailable. Try again.',
+      'storage_limit_exceeded': _ru
+          ? 'Достигнут лимит хранилища 2 ГБ.'
+          : 'The 2 GB storage limit has been reached.',
+    };
+    if (wishlistErrors.containsKey(message)) return wishlistErrors[message]!;
     if (!_ru) return message;
 
     final normalized = message.toLowerCase();

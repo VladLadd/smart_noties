@@ -68,7 +68,11 @@ class GuestNotesStore {
     for (final path in note.attachmentPaths) {
       files.add((await copy(path))!);
     }
+    final wishlist = note.isWishlist
+        ? await note.wishlist.mapImages((p) async => (await copy(p))!)
+        : null;
     final durable = note.copyWith(
+      wishlistData: wishlist?.encode(),
       imagePath: await copy(note.imagePath),
       voicePath: await copy(note.voicePath),
       photoPaths: photos,
@@ -100,5 +104,27 @@ class GuestNotesStore {
     final root = await _root();
     final dir = Directory('${root.path}/$id');
     if (await dir.exists()) await dir.delete(recursive: true);
+  }
+
+  /// Вызывать только после записи JSON: не удалять файлы последней сохранённой версии.
+  Future<void> pruneMedia(Note saved, {String? password}) async {
+    if (!_validId(saved.id)) return;
+    if (saved.hasProtection && (password == null || password.isEmpty)) return;
+    final clear = saved.hasProtection
+        ? await decryptNoteFromClient(saved, password!)
+        : saved;
+    final keep = <String>{
+      if (clear.imagePath != null) clear.imagePath!,
+      if (clear.voicePath != null) clear.voicePath!,
+      ...clear.photoPaths,
+      ...clear.attachmentPaths,
+      if (clear.isWishlist) ...clear.wishlist.imagePaths,
+    };
+    final root = await _root();
+    final directory = Directory('${root.path}/${saved.id}');
+    if (!await directory.exists()) return;
+    await for (final entry in directory.list(followLinks: false)) {
+      if (entry is File && !keep.contains(entry.path)) await entry.delete();
+    }
   }
 }

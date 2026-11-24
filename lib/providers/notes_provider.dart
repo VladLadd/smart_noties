@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,6 +25,35 @@ class NotesProvider extends ChangeNotifier {
   final GuestNotesStore _pendingStore;
   late final Future<void> _pendingLoaded;
   final List<Note> _guestNotes = [];
+  Note? _wishlistCandidate;
+  final Map<String, String> _wishlistUploadCache = {};
+  Future<void> _loadWishlistCandidate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString('wishlist_upload_candidate');
+    if (id == null) return;
+    try {
+      final loaded = await _guestStore.load();
+      _guestNotes
+        ..clear()
+        ..addAll(loaded);
+      for (final n in loaded) {
+        if (n.id == id && n.isWishlist) {
+          _wishlistCandidate = n;
+          break;
+        }
+      }
+      notifyListeners();
+    } catch (_) {/* Исходное хранилище остаётся нетронутым. */}
+  }
+
+  Future<void> offerGuestWishlist(Note note) async {
+    if (!note.id.startsWith('guest_')) return;
+    _wishlistCandidate = note;
+    await (await SharedPreferences.getInstance())
+        .setString('wishlist_upload_candidate', note.id);
+    notifyListeners();
+  }
+
   Future<void> _guestWrites = Future<void>.value();
   Future<void> _serializeGuestWrite(Future<void> Function() action) {
     final result = _guestWrites.then((_) => action());
@@ -83,9 +115,17 @@ class NotesProvider extends ChangeNotifier {
           next[index] = prepared;
         }
         await _guestStore.write(next);
+        try {
+          await _guestStore.pruneMedia(prepared,
+              password: note.protectionPassword);
+        } catch (_) {/* Сохранённый JSON уже зафиксирован. */}
         _guestNotes
           ..clear()
           ..addAll(next);
+        if (_wishlistCandidate != null) {
+          _wishlistCandidate =
+              next.where((n) => n.id == _wishlistCandidate!.id).firstOrNull;
+        }
         notifyListeners();
       });
 
@@ -105,7 +145,12 @@ class NotesProvider extends ChangeNotifier {
                     ..._guestNotes,
                     ..._notes.where((n) => n.isPending && n.isIncoming),
                   ]
-                : _notes)
+                : [
+                    ..._notes,
+                    if (_wishlistCandidate != null &&
+                        !_notes.any((n) => n.id == _wishlistCandidate!.id))
+                      _wishlistCandidate!
+                  ])
             .where((note) => !note.isHidden || isHiddenNotesVisible),
       );
   bool get loadingServerNotes => _loadingServerNotes;
@@ -144,6 +189,7 @@ class NotesProvider extends ChangeNotifier {
             GuestNotesStore(
                 directoryName: 'pending_media', idPrefix: 'local_') {
     _pendingLoaded = _loadPendingNotes();
+    unawaited(_loadWishlistCandidate());
   }
 
   Future<void> importShare(IncomingShare share,
@@ -476,7 +522,7 @@ class NotesProvider extends ChangeNotifier {
   }
 
   bool _isOfflineError(Object e) {
-    if (e is SocketException) return true;
+    if (e is SocketException || e is http.ClientException) return true;
     if (e is TimeoutException) return true;
     if (e is Exception) {
       final msg = e.toString().toLowerCase();
@@ -495,6 +541,10 @@ class NotesProvider extends ChangeNotifier {
   }) async {
     if (_guestMode || note.id.startsWith('guest_')) {
       throw StateError('Локальные заметки не синхронизируются');
+    }
+    if (note.isWishlist) {
+      await uploadWishlist(note, token: token, userId: userId);
+      return;
     }
     final password = note.hasProtection ? note.protectionPassword : null;
     Future<String?> image(String? path) async {
@@ -545,7 +595,7 @@ class NotesProvider extends ChangeNotifier {
     if (!_archivingIds.add(id)) return;
     try {
       await _pendingLoaded;
-      final guest = _guestMode && id.startsWith('guest_');
+      final guest = id.startsWith('guest_');
       final source = guest ? _guestNotes : _notes;
       final index = source.indexWhere((n) => n.id == id);
       if (index < 0) throw StateError('Заметка не найдена');
@@ -575,6 +625,9 @@ class NotesProvider extends ChangeNotifier {
         source
           ..clear()
           ..addAll(next);
+        if (guest && _wishlistCandidate?.id == id) {
+          _wishlistCandidate = next[currentIndex];
+        }
         notifyListeners();
       });
     } finally {
@@ -582,16 +635,127 @@ class NotesProvider extends ChangeNotifier {
     }
   }
 
+  Future<Note> prepareWishlistUploads(Note note, String token) =>
+      _wishlistMedia(note, token);
+
+  Future<Note> _wishlistMedia(Note note, String token) async {
+    final password = note.hasProtection ? note.protectionPassword : null;
+    Future<String> upload(String path) async {
+      if (isRemoteMedia(path)) return path;
+      final key = '$token:$password:$path';
+      return _wishlistUploadCache[key] ??= await _service.uploadPickedImage(
+          file: XFile(path), token: token, mediaPassword: password);
+    }
+
+    final data = await note.wishlist.mapImages(upload);
+    final cover = note.imagePath;
+    return note.copyWith(
+        wishlistData: data.encode(),
+        imagePath: cover == null ? null : await upload(cover));
+  }
+
+  Future<Note> saveWishlist(Note note,
+      {required String? token,
+      required int? userId,
+      int? wishlistRevision}) async {
+    // Не разбираем неизвестный формат, чтобы не затереть его новым пустым списком.
+    note.wishlist;
+    if (_guestMode || note.id.startsWith('guest_')) {
+      final local = note.copyWith(
+          id: note.id.startsWith('guest_')
+              ? note.id
+              : 'guest_${DateTime.now().microsecondsSinceEpoch}');
+      await _saveGuestNote(local);
+      final saved = _guestNotes.firstWhere((n) => n.id == local.id);
+      if (_wishlistCandidate?.id == saved.id) _wishlistCandidate = saved;
+      return saved;
+    }
+    if (note.isPending || token == null || userId == null) {
+      await _pendingLoaded;
+      final local = note.copyWith(
+          id: note.id.isEmpty
+              ? 'local_${DateTime.now().microsecondsSinceEpoch}'
+              : note.id,
+          isPending: true,
+          createdAt: note.createdAt ?? DateTime.now(),
+          updatedAt: DateTime.now());
+      await _serializeGuestWrite(() async {
+        final durable = kIsWeb ? local : await _pendingStore.prepare(local);
+        final next = [durable, ..._notes.where((n) => n.id != durable.id)];
+        await _service.savePendingNotes(next);
+        if (!kIsWeb) {
+          try {
+            await _pendingStore.pruneMedia(durable,
+                password: note.protectionPassword);
+          } catch (_) {}
+        }
+        _notes
+          ..clear()
+          ..addAll(next);
+        notifyListeners();
+      });
+      return _notes.firstWhere((n) => n.id == local.id);
+    }
+    final existing = _notes.any((n) => n.id == note.id);
+    try {
+      final uploaded = await _wishlistMedia(note, token);
+      final saved = existing
+          ? await _service.updateNote(
+              note: uploaded, token: token, wishlistRevision: wishlistRevision)
+          : await _service.createNote(
+              note: uploaded, userId: userId, token: token);
+      _notes.removeWhere((n) => n.id == note.id || n.id == saved.id);
+      _notes.insert(0, saved);
+      notifyListeners();
+      return saved;
+    } catch (e) {
+      if (!existing && !kIsWeb && _isOfflineError(e)) {
+        return saveWishlist(note.copyWith(isPending: true),
+            token: null, userId: null);
+      }
+      rethrow;
+    }
+  }
+
+  Future<Note> uploadWishlist(Note note,
+      {required String token, required int userId}) async {
+    if (_guestMode) throw StateError('Необходима авторизация');
+    final uploaded = await _wishlistMedia(note, token);
+    final saved =
+        await _service.createNote(note: uploaded, userId: userId, token: token);
+    if (saved.title != uploaded.title ||
+        saved.body != uploaded.body ||
+        saved.wishlistData != uploaded.wishlistData ||
+        (saved.imagePath ?? '') != (uploaded.imagePath ?? '')) {
+      throw StateError('wishlist import conflict');
+    }
+    if (note.id.startsWith('guest_')) {
+      await _serializeGuestWrite(() async {
+        final next = _guestNotes.where((n) => n.id != note.id).toList();
+        await _guestStore.write(next);
+        _guestNotes
+          ..clear()
+          ..addAll(next);
+        if (_wishlistCandidate?.id == note.id) _wishlistCandidate = null;
+        await (await SharedPreferences.getInstance())
+            .remove('wishlist_upload_candidate');
+      });
+      await _guestStore.removeMedia(note.id);
+    }
+    _notes.removeWhere((n) => n.id == note.id || n.id == saved.id);
+    _notes.insert(0, saved);
+    await _savePendingNotes();
+    notifyListeners();
+    return saved;
+  }
+
   Future<void> updateNote(
     Note updated, {
     required String? token,
   }) async {
-    if (_guestMode && !updated.id.startsWith('local_')) {
+    if (updated.id.startsWith('guest_')) {
       await _saveGuestNote(updated);
       return;
-    }
-    if (updated.id.startsWith('guest_')) {
-      throw StateError('Локальные заметки не синхронизируются');
     }
     if (updated.isPending && updated.isIncoming) {
       await _serializeGuestWrite(() async {
@@ -671,7 +835,18 @@ class NotesProvider extends ChangeNotifier {
     }
 
     if (note.isPending) {
-      throw Exception('Неверный пароль');
+      try {
+        final unlocked = (await decryptNoteFromClient(note, password))
+            .copyWith(protectionPassword: password);
+        final index = _notes.indexWhere((n) => n.id == note.id);
+        if (index >= 0) {
+          _notes[index] = unlocked;
+          notifyListeners();
+        }
+        return unlocked;
+      } catch (_) {
+        throw Exception('Неверный пароль');
+      }
     }
 
     if (token == null || token.isEmpty) {
@@ -692,13 +867,17 @@ class NotesProvider extends ChangeNotifier {
   }
 
   Future<void> deleteNote(String id, {String? token}) async {
-    if (_guestMode && !id.startsWith('local_')) {
+    if (id.startsWith('guest_')) {
       await _serializeGuestWrite(() async {
         final next = _guestNotes.where((note) => note.id != id).toList();
         await _guestStore.write(next);
         _guestNotes
           ..clear()
           ..addAll(next);
+        if (_wishlistCandidate != null) {
+          _wishlistCandidate =
+              next.where((n) => n.id == _wishlistCandidate!.id).firstOrNull;
+        }
         notifyListeners();
         await _guestStore.removeMedia(id);
       });

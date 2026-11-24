@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'note_video_model.dart';
 import 'note_location.dart';
+import 'wishlist_model.dart';
 
 class Note {
   final String id;
+  final NoteType noteType;
+  final String? wishlistData;
+  bool get isWishlist => noteType == NoteType.wishlist;
+  WishlistData get wishlist => WishlistData.decode(wishlistData);
   final bool isIncoming;
   final bool isArchived;
   final DateTime? createdAt;
@@ -36,6 +41,8 @@ class Note {
 
   const Note({
     required this.id,
+    this.noteType = NoteType.note,
+    this.wishlistData,
     required this.title,
     required this.body,
     this.isIncoming = false,
@@ -61,6 +68,8 @@ class Note {
 
   Note copyWith({
     String? id,
+    NoteType? noteType,
+    String? wishlistData,
     bool? isIncoming,
     bool? isArchived,
     DateTime? createdAt,
@@ -92,6 +101,8 @@ class Note {
     final nextVideos = videos ?? this.videos;
     return Note(
       id: id ?? this.id,
+      noteType: noteType ?? this.noteType,
+      wishlistData: wishlistData ?? this.wishlistData,
       isIncoming: isIncoming ?? this.isIncoming,
       isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
@@ -121,6 +132,8 @@ class Note {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'noteType': noteType.name,
+        'wishlistData': wishlistData,
         'isIncoming': isIncoming,
         'isArchived': isArchived,
         'createdAt': createdAt?.toUtc().toIso8601String(),
@@ -148,6 +161,9 @@ class Note {
     final videos = NoteVideo.listFromJson(json['videos']);
     return Note(
       id: json['id'] as String,
+      noteType:
+          json['noteType'] == 'wishlist' ? NoteType.wishlist : NoteType.note,
+      wishlistData: _readNullableString(json['wishlistData']),
       isIncoming: _readBool(json['isIncoming']),
       isArchived: _readBool(json['isArchived']),
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),

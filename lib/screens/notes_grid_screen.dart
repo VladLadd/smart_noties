@@ -5,6 +5,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'note_edit_screen.dart';
+import 'wishlist_edit_screen.dart';
+import 'wishlist_hub_screen.dart';
+import 'wishlist_view_screen.dart';
+import '../services/wishlist_service.dart';
+import '../widgets/wishlist_widgets.dart';
 import 'note_view_screen.dart';
 import 'profile_screen.dart';
 import '../providers/notes_provider.dart';
@@ -29,6 +34,25 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   DateTimeRange? _dateRange;
   bool _showGrid = true;
   bool _readingNfc = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      final token = Uri.base.queryParameters['wishlist'];
+      if (token != null && RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => WishlistHubScreen(
+                        initialLink: 'https://s-notes.ru/w/$token')));
+          }
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -65,11 +89,6 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (context.watch<AuthProvider>().isGuest)
-              Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(strings.guestModeTitle,
-                      style: Theme.of(context).textTheme.labelLarge)),
             TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
@@ -295,7 +314,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     return (width * ratio).clamp(132.0, 280.0).toDouble();
   }
 
-  Future<void> _openNote(Note note) async {
+  Future<void> _openNote(Note note, {bool editWishlist = false}) async {
     final notesProvider = context.read<NotesProvider>();
     final authToken = context.read<AuthProvider>().token;
     final messenger = ScaffoldMessenger.of(context);
@@ -326,10 +345,22 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     if (!mounted) return;
     navigator.push(
       MaterialPageRoute(
-        builder: (_) => NoteViewScreen(
-          note: noteToOpen,
-          initiallyUnlocked: noteToOpen.hasProtection,
-        ),
+        builder: (_) => noteToOpen.isWishlist
+            ? editWishlist
+                ? !noteToOpen.hasProtection &&
+                        !noteToOpen.isHidden &&
+                        !noteToOpen.isArchived &&
+                        !noteToOpen.isPending &&
+                        !noteToOpen.id.startsWith('guest_') &&
+                        !noteToOpen.id.startsWith('local_')
+                    ? WishlistTeamScreen(
+                        noteId: noteToOpen.id, editImmediately: true)
+                    : WishlistEditScreen(initialNote: noteToOpen)
+                : WishlistViewScreen(note: noteToOpen)
+            : NoteViewScreen(
+                note: noteToOpen,
+                initiallyUnlocked: noteToOpen.hasProtection,
+              ),
       ),
     );
   }
@@ -352,8 +383,12 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: Text(strings.edit),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(sheetContext);
+                if (note.isWishlist) {
+                  await _openNote(note, editWishlist: true);
+                  return;
+                }
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -393,6 +428,22 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
   Future<void> _setArchived(Note note) async {
     final strings = context.readStrings;
     try {
+      if (note.isWishlist &&
+          !note.isArchived &&
+          !note.isPending &&
+          !note.id.startsWith('guest_')) {
+        final token = context.read<AuthProvider>().token;
+        if (token != null) {
+          final state = await WishlistService().request(note.id, token);
+          if (!mounted) return;
+          if (state.active &&
+              !await wishlistConfirm(
+                  context, strings.wishlistRevocationWarning)) {
+            return;
+          }
+          if (!mounted) return;
+        }
+      }
       await context.read<NotesProvider>().setArchived(note.id,
           archived: !note.isArchived,
           token: context.read<AuthProvider>().token);
@@ -519,7 +570,7 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                     const SizedBox(height: 4),
                     Expanded(
                       child: Text(
-                        _plainTextPreview(note.body),
+                        _notePreview(note),
                         maxLines: 5,
                         overflow: TextOverflow.ellipsis,
                         style:
@@ -543,7 +594,8 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
                 ),
               ),
             ),
-          if (!note.hasProtection && (note.isVoice || note.isVideo))
+          if (!note.hasProtection &&
+              (note.isVoice || note.isVideo || note.isWishlist))
             Positioned(
               bottom: 0,
               right: 0,
@@ -560,9 +612,8 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     final title = note.hasProtection
         ? strings.protectedNote
         : (note.title.isNotEmpty ? note.title : strings.noTitle);
-    final body = note.hasProtection
-        ? strings.enterPasswordToView
-        : _plainTextPreview(note.body);
+    final body =
+        note.hasProtection ? strings.enterPasswordToView : _notePreview(note);
 
     return Container(
       height: 92,
@@ -642,7 +693,8 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
               ],
             ),
           ),
-          if (!note.hasProtection && (note.isVoice || note.isVideo)) ...[
+          if (!note.hasProtection &&
+              (note.isVoice || note.isVideo || note.isWishlist)) ...[
             const SizedBox(width: 8),
             _MediaBadges(note: note),
           ],
@@ -777,15 +829,53 @@ class _NotesGridScreenState extends State<NotesGridScreen> {
     }
   }
 
+  String _notePreview(Note note) {
+    if (note.isWishlist && !note.hasProtection) {
+      try {
+        return '${context.readStrings.wishlistItemsLabel}: ${note.wishlist.items.length}\n${_plainTextPreview(note.body)}';
+      } catch (_) {
+        return context.readStrings.wishlistUnsupported;
+      }
+    }
+    return _plainTextPreview(note.body);
+  }
+
+  Future<void> _createNote() async {
+    final s = context.readStrings;
+    final wishlist = await showModalBottomSheet<String>(
+        context: context,
+        builder: (ctx) => SafeArea(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(
+                  leading: const Icon(Icons.note_add_outlined),
+                  title: Text(s.ordinaryNote),
+                  onTap: () => Navigator.pop(ctx, 'note')),
+              ListTile(
+                  leading: const Icon(Icons.card_giftcard),
+                  title: Text(s.wishlist),
+                  onTap: () => Navigator.pop(ctx, 'wishlist')),
+              ListTile(
+                  leading: const Icon(Icons.group_outlined),
+                  title: Text(s.wishlistHub),
+                  onTap: () => Navigator.pop(ctx, 'hub')),
+            ])));
+    if (wishlist == null || !mounted) return;
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => wishlist == 'hub'
+                ? const WishlistHubScreen()
+                : wishlist == 'wishlist'
+                    ? const WishlistEditScreen()
+                    : const NoteEditScreen()));
+  }
+
   Widget _buildFabMenu() {
     return Positioned(
       bottom: 60,
       right: 24,
       child: FloatingActionButton(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const NoteEditScreen()),
-        ),
+        onPressed: _createNote,
         child: const Icon(Icons.add, size: 32),
       ),
     );
@@ -804,6 +894,7 @@ class _MediaBadges extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icons = <IconData>[
+      if (note.isWishlist) Icons.card_giftcard,
       if (note.isVoice) Icons.mic,
       if (note.isVideo) Icons.video_library_outlined,
     ];

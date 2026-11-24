@@ -29,7 +29,15 @@ List<Note> filterNotes(Iterable<Note> notes,
     }
     if (words.isNotEmpty) {
       if (note.hasProtection) return false;
-      final text = '${note.title}\n${note.body}'.toLowerCase();
+      var gifts = '';
+      if (note.isWishlist) {
+        try {
+          gifts = note.wishlist.items
+              .map((i) => '${i.title} ${i.description}')
+              .join(' ');
+        } catch (_) {}
+      }
+      final text = '${note.title}\n${note.body} $gifts'.toLowerCase();
       if (!words.every(text.contains)) return false;
     }
     return true;
